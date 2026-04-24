@@ -6,15 +6,20 @@
   "type": "commonjs",
   "scripts": {
     "dev": "nodemon src/app.js",
-    "start": "node src/app.js"
+    "start": "node src/app.js",
+    "gen-keys": "node -e \"const c=require('crypto');console.log('ENCRYPTION_KEY='+c.randomBytes(32).toString('hex'));console.log('JWT_SECRET='+c.randomBytes(48).toString('hex'));console.log('JWT_REFRESH_SECRET='+c.randomBytes(48).toString('hex'));\""
   },
   "dependencies": {
     "archiver": "^6.0.1",
     "axios": "^1.6.0",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.0.3",
     "multer": "^1.4.5-lts.1",
     "simple-git": "^3.21.0",

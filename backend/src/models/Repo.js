@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 
 const RepoSchema = new mongoose.Schema({
+  userId:       { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   name:         { type: String, required: true },
   url:          { type: String },
   localPath:    { type: String, required: true },
@@ -13,10 +14,13 @@ const RepoSchema = new mongoose.Schema({
   keyFiles:     [{ type: String }],
   techStack:    { type: mongoose.Schema.Types.Mixed, default: {} },
   languages:    { type: mongoose.Schema.Types.Mixed, default: {} },
+  errorMessage: { type: String },
   webhookSecret:{ type: String },
   lastSyncedAt: { type: Date },
   createdAt:    { type: Date, default: Date.now },
   updatedAt:    { type: Date, default: Date.now },
 });
+
+RepoSchema.index({ userId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Repo', RepoSchema);

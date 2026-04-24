@@ -2,16 +2,17 @@ import { useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   MessageSquare, GitBranch, Zap, Home, Plus, Code2,
-  ChevronLeft, ChevronRight, Activity
+  ChevronLeft, ChevronRight, Activity, Settings, LogOut,
 } from 'lucide-react';
-import useAppStore from '../store/appStore';   // ✅ correct path
+import useAppStore  from '../store/appStore';
+import useAuthStore from '../store/authStore';
 import { getRepos } from '../api/client';
 
 const NAV_TABS = [
-  { id: 'chat',   icon: MessageSquare, label: 'Chat'    },
-  { id: 'graph',  icon: GitBranch,     label: 'Graph'   },
-  { id: 'trace',  icon: Activity,      label: 'Trace'   },
-  { id: 'impact', icon: Zap,           label: 'Impact'  },
+  { id: 'chat',   icon: MessageSquare, label: 'Chat'   },
+  { id: 'graph',  icon: GitBranch,     label: 'Graph'  },
+  { id: 'trace',  icon: Activity,      label: 'Trace'  },
+  { id: 'impact', icon: Zap,           label: 'Impact' },
 ];
 
 export default function Sidebar() {
@@ -19,12 +20,18 @@ export default function Sidebar() {
     repos, activeRepoId, activeTab, sidebarOpen,
     setRepos, setActiveRepo, setActiveTab, setGraphData, toggleSidebar,
   } = useAppStore();
-  const navigate = useNavigate();
-  const location = useLocation();
+  const { user, logout } = useAuthStore();
+  const navigate  = useNavigate();
+  const location  = useLocation();
 
   useEffect(() => { getRepos().then(setRepos).catch(() => {}); }, []);
 
   const readyRepos = repos.filter(r => r.status === 'ready');
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
 
   return (
     <aside
@@ -47,10 +54,8 @@ export default function Sidebar() {
       </button>
 
       {/* Logo */}
-      <div
-        className="px-3 py-4 flex items-center gap-2.5 border-b overflow-hidden"
-        style={{ borderColor:'rgba(124,127,245,0.1)' }}
-      >
+      <div className="px-3 py-4 flex items-center gap-2.5 border-b overflow-hidden"
+           style={{ borderColor:'rgba(124,127,245,0.1)' }}>
         <div className="w-8 h-8 rounded-xl shrink-0 bg-gradient-to-br from-ink-500 to-cyan-400 flex items-center justify-center shadow-[0_0_16px_rgba(92,91,232,0.4)]">
           <Code2 className="w-4 h-4 text-white" />
         </div>
@@ -67,9 +72,7 @@ export default function Sidebar() {
         <button
           onClick={() => navigate('/')}
           className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors ${
-            location.pathname === '/'
-              ? 'bg-ink-600/20 text-ink-400'
-              : 'text-[#4a476a] hover:text-white hover:bg-white/5'
+            location.pathname === '/' ? 'bg-ink-600/20 text-ink-400' : 'text-[#4a476a] hover:text-white hover:bg-white/5'
           }`}
         >
           <Home className="w-4 h-4 shrink-0" />
@@ -92,9 +95,7 @@ export default function Sidebar() {
                 onClick={() => setActiveTab(tab.id)}
                 title={!sidebarOpen ? tab.label : undefined}
                 className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg mb-0.5 text-xs transition-all ${
-                  isActive
-                    ? 'bg-ink-600/20 text-ink-400 shadow-[inset_0_0_0_1px_rgba(92,91,232,0.2)]'
-                    : 'text-[#4a476a] hover:text-white hover:bg-white/5'
+                  isActive ? 'bg-ink-600/20 text-ink-400 shadow-[inset_0_0_0_1px_rgba(92,91,232,0.2)]' : 'text-[#4a476a] hover:text-white hover:bg-white/5'
                 }`}
               >
                 <Icon className="w-3.5 h-3.5 shrink-0" />
@@ -110,9 +111,7 @@ export default function Sidebar() {
         <div className="flex-1 overflow-y-auto p-2">
           {readyRepos.length > 0 && (
             <>
-              <p className="text-[10px] font-semibold text-[#2e2a55] uppercase tracking-wider px-2.5 py-2">
-                Repositories
-              </p>
+              <p className="text-[10px] font-semibold text-[#2e2a55] uppercase tracking-wider px-2.5 py-2">Repositories</p>
               {readyRepos.map(repo => {
                 const isActive = activeRepoId === repo._id;
                 return (
@@ -120,9 +119,7 @@ export default function Sidebar() {
                     key={repo._id}
                     onClick={() => { setActiveRepo(repo._id); setGraphData(null); navigate('/dashboard'); }}
                     className={`w-full text-left px-2.5 py-2.5 rounded-lg mb-0.5 transition-all group ${
-                      isActive
-                        ? 'bg-ink-600/20 text-white shadow-[inset_0_0_0_1px_rgba(92,91,232,0.3)]'
-                        : 'text-[#4a476a] hover:bg-white/5 hover:text-white'
+                      isActive ? 'bg-ink-600/20 text-white shadow-[inset_0_0_0_1px_rgba(92,91,232,0.3)]' : 'text-[#4a476a] hover:bg-white/5 hover:text-white'
                     }`}
                   >
                     <div className="flex items-center gap-2">
@@ -142,8 +139,8 @@ export default function Sidebar() {
         </div>
       )}
 
-      {/* Add repo */}
-      <div className="p-2 border-t" style={{ borderColor:'rgba(124,127,245,0.1)' }}>
+      {/* Bottom: Add repo + Settings + User */}
+      <div className="p-2 border-t space-y-0.5" style={{ borderColor:'rgba(124,127,245,0.1)' }}>
         <button
           onClick={() => navigate('/')}
           title={!sidebarOpen ? 'Add Repository' : undefined}
@@ -152,6 +149,38 @@ export default function Sidebar() {
           <Plus className="w-3.5 h-3.5 shrink-0" />
           {sidebarOpen && <span>Add Repository</span>}
         </button>
+
+        <button
+          onClick={() => navigate('/settings')}
+          title={!sidebarOpen ? 'Settings' : undefined}
+          className={`w-full flex items-center gap-2 text-xs px-2.5 py-2 rounded-lg transition-colors ${
+            location.pathname === '/settings' ? 'text-ink-400 bg-ink-600/10' : 'text-[#2e2a55] hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Settings className="w-3.5 h-3.5 shrink-0" />
+          {sidebarOpen && <span>Settings</span>}
+        </button>
+
+        {/* User chip */}
+        {sidebarOpen && user && (
+          <div className="flex items-center gap-2 px-2.5 py-2 mt-1 rounded-lg"
+               style={{ background:'rgba(19,17,40,0.6)' }}>
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-ink-500 to-cyan-400 flex items-center justify-center shrink-0">
+              {user.avatarUrl
+                ? <img src={user.avatarUrl} className="w-6 h-6 rounded-full" alt={user.name} />
+                : <span className="text-[10px] font-bold text-white">{user.name?.charAt(0).toUpperCase()}</span>
+              }
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-semibold text-white truncate">{user.name}</p>
+              <p className="text-[9px] text-[#2e2a55] truncate">{user.email}</p>
+            </div>
+            <button onClick={handleLogout} title="Sign out"
+              className="text-[#2e2a55] hover:text-red-400 transition-colors shrink-0">
+              <LogOut className="w-3 h-3" />
+            </button>
+          </div>
+        )}
       </div>
     </aside>
   );

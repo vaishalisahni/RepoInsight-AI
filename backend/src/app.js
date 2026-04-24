@@ -1,31 +1,54 @@
 require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
+const express       = require('express');
+const cors          = require('cors');
+const cookieParser  = require('cookie-parser');
+const helmet        = require('helmet');
 const { connectDB } = require('./config/db');
-const errorHandler = require('./middleware/errorHandler');
-const logger = require('./utils/logger');
+const errorHandler  = require('./middleware/errorHandler');
+const logger        = require('./utils/logger');
 
-const ingestRoutes = require('./routes/ingest');
-const queryRoutes  = require('./routes/query');
+const authRoutes    = require('./routes/auth');
+const ingestRoutes  = require('./routes/ingest');
+const queryRoutes   = require('./routes/query');
 const explainRoutes = require('./routes/explain');
-const traceRoutes  = require('./routes/trace');
-const graphRoutes  = require('./routes/graph');
-const impactRoutes = require('./routes/impact');
+const traceRoutes   = require('./routes/trace');
+const graphRoutes   = require('./routes/graph');
+const impactRoutes  = require('./routes/impact');
+
+const { protect } = require('./middleware/auth');
 
 const app = express();
 
-app.use(cors({ origin: process.env.FRONTEND_URL || '*' }));
+// Security headers
+app.use(helmet({
+  crossOriginEmbedderPolicy: false, // allow vis-network / external fonts
+  contentSecurityPolicy: false,     // set separately if needed
+}));
+
+// CORS — allow credentials so cookies flow
+app.use(cors({
+  origin:      process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true,
+  methods:     ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization'],
+}));
+
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser()); // Parse cookies
 
 connectDB();
 
-app.use('/api/ingest',  ingestRoutes);
-app.use('/api/query',   queryRoutes);
-app.use('/api/explain', explainRoutes);
-app.use('/api/trace',   traceRoutes);
-app.use('/api/graph',   graphRoutes);
-app.use('/api/impact',  impactRoutes);
+// ── Public routes ────────────────────────────────────────────────────────
+app.use('/api/auth', authRoutes);
+
+// ── Protected routes ─────────────────────────────────────────────────────
+app.use('/api/ingest',  ingestRoutes);   // auth enforced inside route
+app.use('/api/query',   protect, queryRoutes);
+app.use('/api/explain', protect, explainRoutes);
+app.use('/api/trace',   protect, traceRoutes);
+app.use('/api/graph',   protect, graphRoutes);
+app.use('/api/impact',  protect, impactRoutes);
 
 app.get('/health', (req, res) => res.json({ status: 'ok', ts: Date.now() }));
 
