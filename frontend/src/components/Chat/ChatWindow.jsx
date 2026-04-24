@@ -37,64 +37,107 @@ function buildStarters(repo) {
   return [...starters].slice(0, 6);
 }
 
+/**
+ * ChatWindow layout (IMPORTANT for correct behaviour):
+ *
+ *  ┌─────────────────────────────────────┐  ← h-full, flex flex-col
+ *  │  Header (shrink-0)                  │
+ *  ├─────────────────────────────────────┤
+ *  │  Messages (flex-1, overflow-y-auto) │  ← grows/scrolls
+ *  ├─────────────────────────────────────┤
+ *  │  Input (shrink-0)                   │  ← ALWAYS at bottom
+ *  └─────────────────────────────────────┘
+ *
+ * The parent (Dashboard) must give this component a flex-col container
+ * with a definite height (flex-1 + overflow-hidden on the parent chain).
+ */
 export default function ChatWindow() {
-  const [input, setInput] = useState('');
-  const bottomRef   = useRef(null);
-  const textareaRef = useRef(null);
+  const [input, setInput]   = useState('');
+  const bottomRef           = useRef(null);
+  const textareaRef         = useRef(null);
   const {
     messages, activeRepoId, activeRepo, sessionId, isLoading,
     addMessage, setSessionId, setLoading, clearMessages,
   } = useAppStore();
 
+  // Auto-scroll to latest message
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, isLoading]);
 
   const starters = buildStarters(activeRepo);
 
   const send = async (text) => {
     const question = (text || input).trim();
     if (!question || !activeRepoId || isLoading) return;
+
     setInput('');
-    if (textareaRef.current) textareaRef.current.style.height = 'auto';
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+
     addMessage({ role: 'user', content: question });
     setLoading(true);
+
     try {
       const data = await queryRepo(activeRepoId, question, sessionId);
       addMessage({ role: 'assistant', content: data.answer, sources: data.sources });
       setSessionId(data.sessionId);
     } catch (err) {
-      addMessage({ role: 'assistant', content: `⚠️ **Error:** ${err.response?.data?.error || err.message}` });
+      addMessage({
+        role:    'assistant',
+        content: `⚠️ **Error:** ${err.response?.data?.error || err.message}`,
+      });
     } finally {
       setLoading(false);
     }
   };
 
   const handleKey = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
   };
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
+    /* This div must be h-full with flex-col so header + messages + input stack correctly */
+    <div className="flex flex-col" style={{ height: '100%', minHeight: 0 }}>
+
+      {/* ── Header ── shrink-0 so it never grows */}
       <div
         className="flex items-center justify-between px-5 py-3 shrink-0"
-        style={{ borderBottom: '1px solid rgba(148,163,184,0.08)', background: 'rgba(8,11,20,0.7)', backdropFilter: 'blur(10px)' }}
+        style={{
+          borderBottom:   '1px solid rgba(148,163,184,0.08)',
+          background:     'rgba(8,11,20,0.8)',
+          backdropFilter: 'blur(10px)',
+        }}
       >
         <div className="flex items-center gap-2.5">
           <MessageSquare className="w-4 h-4 text-blue-400" />
           <div>
-            <p className="text-[13px] font-semibold text-slate-100" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
-              {activeRepo?.name?.includes('/') ? activeRepo.name.split('/').pop() : activeRepo?.name || 'Chat'}
+            <p
+              className="text-[13px] font-semibold text-slate-100"
+              style={{ fontFamily: "'Space Grotesk', sans-serif" }}
+            >
+              {activeRepo?.name?.includes('/')
+                ? activeRepo.name.split('/').pop()
+                : activeRepo?.name || 'Chat'}
             </p>
             {activeRepo && (
-              <p className="text-[10px] text-slate-600" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-                {(activeRepo.totalFiles || 0).toLocaleString()} files · {(activeRepo.totalChunks || 0).toLocaleString()} chunks
+              <p
+                className="text-[10px] text-slate-600"
+                style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+              >
+                {(activeRepo.totalFiles  || 0).toLocaleString()} files
+                {' · '}
+                {(activeRepo.totalChunks || 0).toLocaleString()} chunks
                 {activeRepo.techStack?.primaryLanguage && ` · ${activeRepo.techStack.primaryLanguage}`}
               </p>
             )}
           </div>
         </div>
+
         {messages.length > 0 && (
           <button
             onClick={clearMessages}
@@ -105,13 +148,19 @@ export default function ChatWindow() {
         )}
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
+      {/* ── Messages ── flex-1 + overflow-y-auto = scrollable, never pushes input */}
+      <div
+        className="px-5 py-5 space-y-4 overflow-y-auto"
+        style={{ flex: '1 1 0', minHeight: 0 }}
+      >
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
             <div
               className="w-12 h-12 rounded-2xl mb-4 flex items-center justify-center"
-              style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)' }}
+              style={{
+                background: 'rgba(59,130,246,0.1)',
+                border:     '1px solid rgba(59,130,246,0.2)',
+              }}
             >
               <Sparkles className="w-5 h-5 text-blue-400" />
             </div>
@@ -136,14 +185,14 @@ export default function ChatWindow() {
                     className="text-left text-[12px] text-slate-500 px-3 py-2.5 rounded-xl hover:text-slate-300 transition-all"
                     style={{
                       background: 'rgba(16,23,41,0.7)',
-                      border: '1px solid rgba(148,163,184,0.08)',
+                      border:     '1px solid rgba(148,163,184,0.08)',
                     }}
                     onMouseEnter={e => {
-                      e.currentTarget.style.border = '1px solid rgba(59,130,246,0.2)';
+                      e.currentTarget.style.border     = '1px solid rgba(59,130,246,0.2)';
                       e.currentTarget.style.background = 'rgba(59,130,246,0.06)';
                     }}
                     onMouseLeave={e => {
-                      e.currentTarget.style.border = '1px solid rgba(148,163,184,0.08)';
+                      e.currentTarget.style.border     = '1px solid rgba(148,163,184,0.08)';
                       e.currentTarget.style.background = 'rgba(16,23,41,0.7)';
                     }}
                   >
@@ -157,37 +206,53 @@ export default function ChatWindow() {
 
         {messages.map((msg, i) => <MessageBubble key={i} message={msg} />)}
 
+        {/* Typing indicator */}
         {isLoading && (
           <div className="flex items-start gap-2.5">
             <div
               className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[9px] font-bold text-white"
-              style={{ background: 'linear-gradient(135deg, #2563eb, #0ea5e9)', minWidth: '24px' }}
+              style={{
+                background: 'linear-gradient(135deg, #2563eb, #0ea5e9)',
+                minWidth:   '24px',
+              }}
             >
               AI
             </div>
             <div
               className="px-4 py-3 rounded-2xl rounded-tl-sm"
-              style={{ background: 'rgba(16,23,41,0.8)', border: '1px solid rgba(148,163,184,0.08)' }}
+              style={{
+                background: 'rgba(16,23,41,0.8)',
+                border:     '1px solid rgba(148,163,184,0.08)',
+              }}
             >
               <div className="flex gap-1.5 items-center h-4">
                 {[0, 1, 2].map(i => (
-                  <span key={i} className="typing-dot w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#60a5fa' }} />
+                  <span
+                    key={i}
+                    className="typing-dot w-1.5 h-1.5 rounded-full inline-block"
+                    style={{ background: '#60a5fa' }}
+                  />
                 ))}
               </div>
             </div>
           </div>
         )}
+
+        {/* Invisible anchor for auto-scroll */}
         <div ref={bottomRef} />
       </div>
 
-      {/* Input area */}
+      {/* ── Input ── shrink-0 = always at the bottom, never scrolled away */}
       <div
-        className="p-4 shrink-0"
+        className="px-4 py-3 shrink-0"
         style={{ borderTop: '1px solid rgba(148,163,184,0.08)' }}
       >
         <div
           className="flex gap-2 items-end rounded-xl px-3 py-2"
-          style={{ background: 'rgba(16,23,41,0.9)', border: '1px solid rgba(148,163,184,0.12)' }}
+          style={{
+            background: 'rgba(16,23,41,0.9)',
+            border:     '1px solid rgba(148,163,184,0.12)',
+          }}
         >
           <textarea
             ref={textareaRef}
@@ -199,9 +264,9 @@ export default function ChatWindow() {
             rows={1}
             className="flex-1 bg-transparent outline-none text-[14px] py-0.5 resize-none"
             style={{
-              color: '#e2e8f0',
+              color:      '#e2e8f0',
               caretColor: '#60a5fa',
-              maxHeight: '120px',
+              maxHeight:  '120px',
               fontFamily: "'Manrope', sans-serif",
             }}
             onInput={e => {

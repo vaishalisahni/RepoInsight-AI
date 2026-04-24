@@ -10,17 +10,31 @@ import useAuthStore from './store/authStore';
 import Navbar from './components/Navbar';
 import { Outlet } from 'react-router-dom';
 
+/**
+ * Layout:  navbar (56px, shrink-0)  +  content (flex-1, overflow-hidden)
+ *
+ * Using 100dvh (or 100vh fallback) on the root ensures the app never
+ * overflows the viewport. Each child that needs scroll manages it
+ * internally via overflow-y-auto on its own scrollable container.
+ */
 function Layout() {
   return (
-    <div className="flex flex-col min-h-screen">
+    <div
+      style={{
+        display:       'flex',
+        flexDirection: 'column',
+        height:        '100dvh',   // dynamic viewport height — handles mobile chrome bar
+        overflow:      'hidden',
+      }}
+    >
       <Navbar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      {/* Content area fills the remaining height exactly */}
+      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <Outlet />
       </div>
     </div>
   );
 }
-
 
 export default function App() {
   const initAuth = useAuthStore(s => s.initAuth);

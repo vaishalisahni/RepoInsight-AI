@@ -1,19 +1,18 @@
 import { useEffect } from 'react';
-import Sidebar     from '../components/Sidebar';
-import ChatWindow  from '../components/Chat/ChatWindow';
+import Sidebar         from '../components/Sidebar';
+import ChatWindow      from '../components/Chat/ChatWindow';
 import DependencyGraph from '../components/Graph/DependencyGraph';
-import TracePanel  from '../components/Panel/TracePanel';
-import ImpactPanel from '../components/Panel/ImpactPanel';
-import RepoSummary from '../components/Panel/RepoSummary';
-import TechStackBadge from '../components/TechStack/TechStackBadge';
-import useAppStore from '../store/appStore';
-import { getGraph } from '../api/client';
-import { Loader2, AlertCircle } from 'lucide-react';
+import TracePanel      from '../components/Panel/TracePanel';
+import ImpactPanel     from '../components/Panel/ImpactPanel';
+import RepoSummary     from '../components/Panel/RepoSummary';
+import TechStackBadge  from '../components/TechStack/TechStackBadge';
+import useAppStore     from '../store/appStore';
+import { getGraph }    from '../api/client';
+import { Loader2, AlertCircle, GitBranch } from 'lucide-react';
 
 export default function Dashboard() {
   const { activeRepoId, activeRepo, activeTab, graphData, setGraphData } = useAppStore();
 
-  // Load graph when switching to graph tab
   useEffect(() => {
     if (activeRepoId && activeTab === 'graph' && !graphData) {
       getGraph(activeRepoId)
@@ -28,9 +27,11 @@ export default function Dashboard() {
         <Sidebar />
         <div className="flex-1 flex items-center justify-center text-center">
           <div>
-            <AlertCircle className="w-12 h-12 text-[#2e2a55] mx-auto mb-4" />
-            <p className="text-[#4a476a] text-sm">No repository selected.</p>
-            <p className="text-[#2e2a55] text-xs mt-1">Go home and index a repository first.</p>
+            <GitBranch className="w-12 h-12 mx-auto mb-4" style={{ color: '#1e2d45' }} />
+            <p className="text-slate-500 text-sm">No repository selected.</p>
+            <p className="text-[12px] mt-1" style={{ color: '#1e2d45' }}>
+              Go home and index a repository first.
+            </p>
           </div>
         </div>
       </div>
@@ -38,28 +39,41 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden">
+    // The outer wrapper must be exactly the viewport height minus the navbar (56px)
+    // We achieve this by making the flex row fill whatever height the layout gives it.
+    <div className="flex overflow-hidden" style={{ height: '100%' }}>
       <Sidebar />
 
-      {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      {/* ── Main content column ── */}
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
 
-        {/* Tech stack header bar */}
+        {/* Tech-stack header bar — fixed height, never grows */}
         {activeRepo?.techStack?.frameworks?.length > 0 && (
           <div
-            className="shrink-0 px-5 py-2 flex items-center gap-3 border-b overflow-x-auto"
-            style={{ borderColor:'rgba(124,127,245,0.1)', background:'rgba(13,11,30,0.7)', backdropFilter:'blur(8px)' }}
+            className="shrink-0 px-5 py-2 flex items-center gap-3 overflow-x-auto"
+            style={{
+              borderBottom:   '1px solid rgba(148,163,184,0.08)',
+              background:     'rgba(10,14,26,0.8)',
+              backdropFilter: 'blur(8px)',
+              minHeight:      '42px',
+            }}
           >
-            <span className="text-[10px] text-[#2e2a55] font-semibold uppercase tracking-wider whitespace-nowrap">Stack:</span>
-            <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] text-slate-700 font-semibold uppercase tracking-wider whitespace-nowrap">
+              Stack:
+            </span>
+            <div className="flex items-center gap-2 flex-nowrap">
               {activeRepo.techStack.frameworks.map(fw => (
                 <TechStackBadge key={fw.name} framework={fw} />
               ))}
             </div>
             {activeRepo.techStack.primaryLanguage && (
               <span
-                className="ml-auto text-[10px] font-mono px-2 py-0.5 rounded-md whitespace-nowrap"
-                style={{ background:'rgba(92,91,232,0.1)', color:'#a3a9fc', border:'1px solid rgba(92,91,232,0.15)' }}
+                className="ml-auto text-[10px] font-mono px-2 py-0.5 rounded-md whitespace-nowrap shrink-0"
+                style={{
+                  background: 'rgba(59,130,246,0.1)',
+                  color:      '#60a5fa',
+                  border:     '1px solid rgba(59,130,246,0.15)',
+                }}
               >
                 {activeRepo.techStack.primaryLanguage}
               </span>
@@ -67,39 +81,75 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Panel content */}
-        <div className="flex-1 overflow-hidden">
+        {/* ── Tab panels — each must fill the remaining height ── */}
+        <div className="flex-1 overflow-hidden min-h-0">
+
+          {/* ── CHAT TAB ── */}
           {activeTab === 'chat' && (
-            <div className="flex h-full">
-              <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex h-full overflow-hidden">
+
+              {/* Chat area — fills all available height */}
+              <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+                {/*
+                  ChatWindow itself must be flex-col h-full:
+                    - header: shrink-0
+                    - messages: flex-1 overflow-y-auto
+                    - input: shrink-0
+                  This ensures the input is always pinned to the bottom.
+                */}
                 <ChatWindow />
               </div>
-              {/* Sidebar panel: summary + key files */}
+
+              {/* Right summary panel — independent scroll, fixed width */}
               <div
-                className="w-72 shrink-0 border-l overflow-y-auto"
-                style={{ borderColor:'rgba(124,127,245,0.1)', background:'rgba(10,9,24,0.6)' }}
+                className="w-72 shrink-0 flex flex-col overflow-hidden"
+                style={{
+                  borderLeft:  '1px solid rgba(148,163,184,0.08)',
+                  background:  'rgba(8,11,20,0.6)',
+                }}
               >
-                <RepoSummary />
+                {/* Panel header */}
+                <div
+                  className="px-4 py-3 shrink-0 flex items-center gap-2"
+                  style={{ borderBottom: '1px solid rgba(148,163,184,0.07)' }}
+                >
+                  <span
+                    className="text-[10px] font-semibold uppercase tracking-widest"
+                    style={{ color: '#334155' }}
+                  >
+                    Repository Overview
+                  </span>
+                </div>
+
+                {/* Scrollable summary content */}
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  <RepoSummary />
+                </div>
               </div>
             </div>
           )}
 
+          {/* ── GRAPH TAB ── */}
           {activeTab === 'graph' && (
             <div className="h-full p-4">
               {!graphData ? (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-center">
-                    <Loader2 className="w-8 h-8 text-ink-400 animate-spin mx-auto mb-3" />
-                    <p className="text-[#4a476a] text-sm">Loading dependency graph…</p>
-                    <p className="text-[#2e2a55] text-xs mt-1">This may take a moment for large repos</p>
+                    <Loader2 className="w-8 h-8 text-blue-400 animate-spin mx-auto mb-3" />
+                    <p className="text-slate-500 text-sm">Loading dependency graph…</p>
+                    <p className="text-[12px] mt-1" style={{ color: '#1e2d45' }}>
+                      This may take a moment for large repos
+                    </p>
                   </div>
                 </div>
               ) : graphData.nodes?.length === 0 ? (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-center">
-                    <AlertCircle className="w-8 h-8 text-[#2e2a55] mx-auto mb-3" />
-                    <p className="text-[#4a476a] text-sm">No graph data available.</p>
-                    <p className="text-[#2e2a55] text-xs mt-1">Re-index the repository to generate a dependency graph.</p>
+                    <AlertCircle className="w-8 h-8 mx-auto mb-3" style={{ color: '#1e2d45' }} />
+                    <p className="text-slate-500 text-sm">No graph data available.</p>
+                    <p className="text-[12px] mt-1" style={{ color: '#1e2d45' }}>
+                      Re-index the repository to generate a dependency graph.
+                    </p>
                   </div>
                 </div>
               ) : (
@@ -111,7 +161,10 @@ export default function Dashboard() {
             </div>
           )}
 
-          {activeTab === 'trace'  && <TracePanel  />}
+          {/* ── TRACE TAB ── */}
+          {activeTab === 'trace' && <TracePanel />}
+
+          {/* ── IMPACT TAB ── */}
           {activeTab === 'impact' && <ImpactPanel />}
         </div>
       </div>
