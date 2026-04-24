@@ -11,17 +11,20 @@ async function getModel() {
 }
 
 async function embedTexts(texts) {
-  const model = await getModel();
+  const model   = await getModel();
   const results = [];
   for (let i = 0; i < texts.length; i += 32) {
     const batch = texts.slice(i, i + 32);
-    const out = await model(batch, { pooling: 'mean', normalize: true });
-    const size = out.dims[out.dims.length - 1];
+    const out   = await model(batch, { pooling: 'mean', normalize: true });
+    const size  = out.dims[out.dims.length - 1];
     for (let j = 0; j < batch.length; j++)
       results.push(Array.from(out.data.slice(j * size, (j + 1) * size)));
   }
   return results;
 }
 
-async function embedSingle(text) { return (await embedTexts([text]))[0]; }
+async function embedSingle(text) {
+  return (await embedTexts([text]))[0];
+}
+
 module.exports = { embedTexts, embedSingle };

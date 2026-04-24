@@ -1,62 +1,30 @@
-const faiss = require('faiss-node');
-const fs    = require('fs');
-const path  = require('path');
+let pipeline = null;
+const MODEL = process.env.EMBEDDINGS_MODEL || 'Xenova/all-MiniLM-L6-v2';
 
-const BASE = process.env.FAISS_INDEX_PATH || './data/faiss_index';
-const DIM  = parseInt(process.env.EMBEDDINGS_DIM || '384');
-
-function paths(ns) {
-  const dir = path.join(BASE, ns);
-  fs.mkdirSync(dir, { recursive: true });
-  return { idx: path.join(dir, 'index.faiss'), meta: path.join(dir, 'meta.json') };
+async function getModel() {
+  if (pipeline) return pipeline;
+  console.log(`[embedder] Loading ${MODEL}... (first run downloads ~90MB)`);
+  const { pipeline: p } = await import('@xenova/transformers');
+  pipeline = await p('feature-extraction', MODEL, { cache_dir: './data/models' });
+  console.log('[embedder] Ready ✓');
+  return pipeline;
 }
 
-function loadOrCreate(ns) {
-  const { idx } = paths(ns);
-  if (fs.existsSync(idx)) {
-    try { return faiss.IndexFlatL2.read(idx); } catch(_) {}
+async function embedTexts(texts) {
+  const model   = await getModel();
+  const results = [];
+  for (let i = 0; i < texts.length; i += 32) {
+    const batch = texts.slice(i, i + 32);
+    const out   = await model(batch, { pooling: 'mean', normalize: true });
+    const size  = out.dims[out.dims.length - 1];
+    for (let j = 0; j < batch.length; j++)
+      results.push(Array.from(out.data.slice(j * size, (j + 1) * size)));
   }
-  return new faiss.IndexFlatL2(DIM);
+  return results;
 }
 
-async function addVectors(ns, vectors) {
-  const index   = loadOrCreate(ns);
-  const startId = index.ntotal();
-
-  // faiss-node .add() wants a plain flat JS Array (not Float32Array, not nested)
-  const flat = [];
-  for (const vec of vectors) {
-    for (const val of vec) {
-      flat.push(Number(val));
-    }
-  }
-
-  index.add(flat);
-  index.write(paths(ns).idx);
-  return startId;
+async function embedSingle(text) {
+  return (await embedTexts([text]))[0];
 }
 
-async function search(ns, queryVec, topK = 8) {
-  const { idx } = paths(ns);
-  if (!fs.existsSync(idx)) return [];
-  const index = faiss.IndexFlatL2.read(idx);
-
-  // Also pass a plain flat Array for search
-  const flat = Array.from(queryVec).map(Number);
-
-  const result = index.search(flat, topK);
-  return Array.from(result.labels).filter(l => l >= 0);
-}
-
-function saveMeta(ns, meta) {
-  const { meta: mp } = paths(ns);
-  const existing = fs.existsSync(mp) ? JSON.parse(fs.readFileSync(mp, 'utf-8')) : [];
-  fs.writeFileSync(mp, JSON.stringify([...existing, ...meta]));
-}
-
-function loadMeta(ns) {
-  const { meta: mp } = paths(ns);
-  return fs.existsSync(mp) ? JSON.parse(fs.readFileSync(mp, 'utf-8')) : [];
-}
-
-module.exports = { addVectors, search, saveMeta, loadMeta };
+module.exports = { embedTexts, embedSingle };

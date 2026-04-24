@@ -3,11 +3,6 @@ const router   = express.Router();
 const Repo     = require('../models/Repo');
 const aiClient = require('../services/aiClient');
 
-/**
- * POST /api/impact
- * Body: { repoId, filePath }
- * Response: { analysis, relatedFiles }
- */
 router.post('/', async (req, res, next) => {
   try {
     const { repoId, filePath } = req.body;
@@ -26,9 +21,7 @@ router.post('/', async (req, res, next) => {
     });
 
     res.json(result);
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 });
 
 module.exports = router;

@@ -1,5 +1,5 @@
 {
   "watch": ["src"],
-  "ignore": ["data/**", "data/models/**", "data/faiss_index/**"],
+  "ignore": ["data/**"],
   "ext": "js,json"
 }

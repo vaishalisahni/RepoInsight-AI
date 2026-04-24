@@ -3,10 +3,10 @@ const logger = require('../utils/logger');
 
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI);
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/repoinsight');
     logger.info('MongoDB connected');
   } catch (err) {
-    logger.error('MongoDB connection error:', err.message);
+    logger.error('MongoDB connection error: ' + err.message);
     process.exit(1);
   }
 };

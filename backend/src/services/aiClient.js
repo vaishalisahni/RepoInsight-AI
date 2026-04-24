@@ -5,7 +5,7 @@ const AI_BASE = process.env.AI_SERVICE_URL || 'http://localhost:5000';
 
 const client = axios.create({
   baseURL: AI_BASE,
-  timeout: 120000 // 2 minutes for large codebases
+  timeout: 180000 // 3 minutes for large codebases
 });
 
 module.exports = {
@@ -14,22 +14,18 @@ module.exports = {
     const { data } = await client.post('/ingest', { repoId, localPath, faissIndexId });
     return data;
   },
-
   async query({ faissIndexId, question, history, repoName }) {
     const { data } = await client.post('/query', { faissIndexId, question, history, repoName });
     return data;
   },
-
   async explain({ filePath, selection, chunks, faissIndexId, repoName }) {
     const { data } = await client.post('/explain', { filePath, selection, chunks, faissIndexId, repoName });
     return data;
   },
-
   async trace({ faissIndexId, graph, entryPoint, functionName, repoName }) {
     const { data } = await client.post('/trace', { faissIndexId, graph, entryPoint, functionName, repoName });
     return data;
   },
-
   async impact({ faissIndexId, filePath, repoName }) {
     const { data } = await client.post('/impact', { faissIndexId, filePath, repoName });
     return data;

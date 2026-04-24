@@ -1,27 +1,35 @@
 import { create } from 'zustand';
 
 const useAppStore = create((set, get) => ({
-  // Repos
-  repos: [],
+  repos:        [],
   activeRepoId: null,
-  setRepos: (repos) => set({ repos }),
-  setActiveRepo: (repoId) => set({ activeRepoId: repoId, messages: [], sessionId: null }),
+  activeRepo:   null,
+  setRepos:     (repos) => set({ repos }),
+  setActiveRepo: (repoId) => {
+    const repo = get().repos.find(r => r._id === repoId) || null;
+    set({ activeRepoId: repoId, activeRepo: repo, messages: [], sessionId: null, graphData: null });
+  },
+  updateRepo: (id, data) => set(s => ({
+    repos: s.repos.map(r => r._id === id ? { ...r, ...data } : r),
+    activeRepo: s.activeRepoId === id ? { ...s.activeRepo, ...data } : s.activeRepo
+  })),
 
-  // Chat
-  messages: [],
-  sessionId: null,
-  isLoading: false,
+  messages:   [],
+  sessionId:  null,
+  isLoading:  false,
   addMessage: (msg) => set(s => ({ messages: [...s.messages, msg] })),
   setSessionId: (id) => set({ sessionId: id }),
-  setLoading: (v) => set({ isLoading: v }),
+  setLoading:  (v) => set({ isLoading: v }),
+  clearMessages: () => set({ messages: [], sessionId: null }),
 
-  // Graph
-  graphData: null,
+  graphData:    null,
   setGraphData: (data) => set({ graphData: data }),
 
-  // Active file
-  activeFilePath: null,
-  setActiveFilePath: (path) => set({ activeFilePath: path })
+  activeTab:    'chat',
+  setActiveTab: (tab) => set({ activeTab: tab }),
+
+  sidebarOpen:    true,
+  toggleSidebar:  () => set(s => ({ sidebarOpen: !s.sidebarOpen })),
 }));
 
 export default useAppStore;
