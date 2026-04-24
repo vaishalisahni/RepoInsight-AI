@@ -14,8 +14,8 @@ const upload = multer({ dest: '/tmp/uploads/' });
 
 /**
  * POST /api/ingest
- * JSON: { url, branch? }
- * Multipart: file (ZIP), name
+ * JSON body: { url, branch? }   — clone from GitHub
+ * Multipart: file (ZIP), name   — upload a zip
  */
 router.post('/', upload.single('file'), async (req, res, next) => {
   try {
@@ -28,14 +28,14 @@ router.post('/', upload.single('file'), async (req, res, next) => {
 
     if (url) {
       repoName = repoName || url.split('/').slice(-2).join('/');
-      logger.info(`Cloning ${url} to ${localPath}`);
+      logger.info(`Cloning ${url} (branch: ${branch}) to ${localPath}`);
       const git = simpleGit();
       const cloneUrl = process.env.GITHUB_TOKEN
         ? url.replace('https://', `https://${process.env.GITHUB_TOKEN}@`)
         : url;
       await git.clone(cloneUrl, localPath, ['--depth', '1', '--branch', branch]);
     } else if (req.file) {
-      repoName = repoName || req.file.originalname.replace('.zip', '');
+      repoName = repoName || req.file.originalname.replace(/\.zip$/, '');
       await fs.createReadStream(req.file.path)
         .pipe(unzipper.Extract({ path: localPath }))
         .promise();
@@ -46,27 +46,30 @@ router.post('/', upload.single('file'), async (req, res, next) => {
 
     const repo = await Repo.create({
       name: repoName,
-      url: url || null,
+      url:  url || null,
       localPath,
-      status: 'indexing',
-      faissIndexId: repoId
+      status:       'indexing',
+      faissIndexId: repoId,
     });
 
+    // Respond immediately — indexing is async
     res.json({ repoId: repo._id, status: 'indexing', message: 'Ingestion started.' });
 
     // Non-blocking indexing
     aiClient.ingest(repo._id.toString(), localPath, repoId)
       .then(async (result) => {
         await Repo.findByIdAndUpdate(repo._id, {
-          status: 'ready',
+          status:      'ready',
           totalFiles:  result.totalFiles,
           totalChunks: result.totalChunks,
           graph:       result.graph,
           summary:     result.summary,
           keyFiles:    result.keyFiles,
-          updatedAt:   new Date()
+          techStack:   result.techStack  || {},
+          languages:   result.languages  || {},
+          updatedAt:   new Date(),
         });
-        logger.info(`Repo ${repo._id} indexed: ${result.totalChunks} chunks`);
+        logger.info(`Repo ${repo._id} indexed: ${result.totalChunks} chunks, stack: ${JSON.stringify(result.techStack?.frameworks?.map(f=>f.name))}`);
       })
       .catch(async (err) => {
         await Repo.findByIdAndUpdate(repo._id, { status: 'error' });
@@ -80,17 +83,17 @@ router.post('/', upload.single('file'), async (req, res, next) => {
 router.get('/:repoId/status', async (req, res, next) => {
   try {
     const repo = await Repo.findById(req.params.repoId)
-      .select('name status totalFiles totalChunks summary keyFiles createdAt');
+      .select('name status totalFiles totalChunks summary keyFiles techStack languages createdAt');
     if (!repo) return res.status(404).json({ error: 'Repo not found' });
     res.json(repo);
   } catch (err) { next(err); }
 });
 
-/** GET /api/ingest - list all repos */
+/** GET /api/ingest — list all repos */
 router.get('/', async (req, res, next) => {
   try {
     const repos = await Repo.find({})
-      .select('name status totalFiles totalChunks createdAt url summary')
+      .select('name status totalFiles totalChunks createdAt url summary techStack languages')
       .sort({ createdAt: -1 });
     res.json(repos);
   } catch (err) { next(err); }
@@ -101,6 +104,12 @@ router.delete('/:repoId', async (req, res, next) => {
   try {
     const repo = await Repo.findByIdAndDelete(req.params.repoId);
     if (!repo) return res.status(404).json({ error: 'Repo not found' });
+
+    // Clean up local clone
+    if (repo.localPath && fs.existsSync(repo.localPath)) {
+      fs.rmSync(repo.localPath, { recursive: true, force: true });
+    }
+
     res.json({ message: 'Deleted' });
   } catch (err) { next(err); }
 });
