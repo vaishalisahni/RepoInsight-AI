@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Code2, Settings, LogOut, Github, ChevronDown, User, AlertTriangle } from 'lucide-react';
+import { Code2, Settings, LogOut, Github, ChevronDown, User, AlertTriangle, Zap } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import useAuthStore from '../store/authStore';
 
@@ -10,7 +10,6 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
   const dropRef   = useRef(null);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handler = (e) => { if (dropRef.current && !dropRef.current.contains(e.target)) setOpen(false); };
     document.addEventListener('mousedown', handler);
@@ -23,140 +22,151 @@ export default function Navbar() {
     navigate('/login');
   };
 
-  const navLinks = user
-    ? [
-        { to: '/',          label: 'Home'      },
-        { to: '/dashboard', label: 'Dashboard' },
-      ]
-    : [
-        { to: '/',          label: 'Home'      },
-      ];
+  const isActive = (path) => location.pathname === path;
 
   return (
     <header
-      className="sticky top-0 z-50 w-full border-b"
-      style={{ background: 'rgba(7,6,15,0.85)', borderColor: 'rgba(124,127,245,0.1)', backdropFilter: 'blur(16px)' }}
+      className="sticky top-0 z-50 w-full"
+      style={{
+        background: 'rgba(8, 11, 20, 0.9)',
+        borderBottom: '1px solid rgba(148, 163, 184, 0.08)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+      }}
     >
-      <div className="max-w-6xl mx-auto px-6 h-14 flex items-center justify-between gap-6">
+      <div className="max-w-7xl mx-auto px-5 h-[56px] flex items-center gap-6">
 
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2.5 shrink-0 group">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-ink-500 to-cyan-400 flex items-center justify-center shadow-[0_0_16px_rgba(92,91,232,0.35)] group-hover:shadow-[0_0_24px_rgba(92,91,232,0.5)] transition-shadow">
-            <Code2 className="w-4 h-4 text-white" />
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all group-hover:scale-105"
+            style={{
+              background: 'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 50%, #0ea5e9 100%)',
+              boxShadow: '0 0 16px rgba(59,130,246,0.3)',
+            }}
+          >
+            <Code2 className="w-4 h-4 text-white" strokeWidth={2.5} />
           </div>
-          <span className="text-sm font-bold text-white font-display hidden sm:block">RepoInsight</span>
+          <span
+            className="font-bold tracking-tight hidden sm:block"
+            style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '15px', color: '#f1f5f9' }}
+          >
+            RepoInsight
+          </span>
+          <span
+            className="hidden md:block text-[10px] font-semibold px-1.5 py-0.5 rounded-md"
+            style={{ background: 'rgba(59,130,246,0.12)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.2)', fontFamily: "'IBM Plex Mono', monospace" }}
+          >
+            AI
+          </span>
         </Link>
 
         {/* Nav links */}
         <nav className="flex items-center gap-1 flex-1">
-          {navLinks.map(l => (
-            <Link
-              key={l.to}
-              to={l.to}
-              className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${
-                location.pathname === l.to
-                  ? 'text-ink-400 bg-ink-600/15'
-                  : 'text-[#4a476a] hover:text-white hover:bg-white/5'
-              }`}
-            >
-              {l.label}
-            </Link>
-          ))}
+          {user && (
+            <>
+              <NavLink to="/" label="Home" active={isActive('/')} />
+              <NavLink to="/dashboard" label="Dashboard" active={isActive('/dashboard')} />
+            </>
+          )}
+          {!user && (
+            <NavLink to="/" label="Home" active={isActive('/')} />
+          )}
         </nav>
 
-        {/* Right side */}
+        {/* Right */}
         <div className="flex items-center gap-2 shrink-0">
           {user ? (
             <>
-              {/* GitHub token warning */}
+              {/* GitHub token warning pill */}
               {!user.hasGithubToken && (
                 <Link
                   to="/settings"
-                  className="hidden md:flex items-center gap-1.5 text-[10px] text-amber-400 px-2.5 py-1.5 rounded-lg transition-colors hover:bg-amber-500/10"
-                  style={{ border: '1px solid rgba(251,191,36,0.2)' }}
+                  className="hidden md:flex items-center gap-1.5 text-[11px] font-medium px-3 py-1.5 rounded-lg transition-all"
+                  style={{
+                    background: 'rgba(245,158,11,0.08)',
+                    border: '1px solid rgba(245,158,11,0.2)',
+                    color: '#fbbf24',
+                  }}
                 >
                   <AlertTriangle className="w-3 h-3" />
                   Add GitHub token
                 </Link>
               )}
 
-              {/* User dropdown */}
+              {/* User menu */}
               <div className="relative" ref={dropRef}>
                 <button
                   onClick={() => setOpen(v => !v)}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl transition-colors hover:bg-white/5"
-                  style={{ border: '1px solid rgba(124,127,245,0.12)' }}
+                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl transition-all"
+                  style={{
+                    background: open ? 'rgba(148,163,184,0.08)' : 'transparent',
+                    border: '1px solid rgba(148,163,184,0.1)',
+                  }}
                 >
-                  {user.avatarUrl
-                    ? <img src={user.avatarUrl} className="w-6 h-6 rounded-full" alt={user.name} />
-                    : (
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-ink-500 to-cyan-400 flex items-center justify-center">
-                        <span className="text-[10px] font-bold text-white">{user.name?.charAt(0).toUpperCase()}</span>
-                      </div>
-                    )
-                  }
-                  <span className="text-xs text-white hidden sm:block max-w-[120px] truncate">{user.name}</span>
-                  <ChevronDown className={`w-3 h-3 text-[#4a476a] transition-transform ${open ? 'rotate-180' : ''}`} />
+                  <Avatar user={user} size={26} />
+                  <span className="text-[13px] font-medium text-slate-200 hidden sm:block max-w-[100px] truncate">
+                    {user.name}
+                  </span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
                 </button>
 
                 {open && (
                   <div
-                    className="absolute right-0 top-full mt-1 w-52 rounded-xl py-1 shadow-2xl z-50"
-                    style={{ background: 'rgba(13,11,30,0.98)', border: '1px solid rgba(124,127,245,0.15)', backdropFilter: 'blur(12px)' }}
+                    className="absolute right-0 top-full mt-2 w-56 rounded-xl py-1.5 z-50"
+                    style={{
+                      background: 'rgba(10, 14, 26, 0.98)',
+                      border: '1px solid rgba(148,163,184,0.12)',
+                      backdropFilter: 'blur(20px)',
+                      boxShadow: '0 20px 60px rgba(0,0,0,0.5)',
+                    }}
                   >
                     {/* User info */}
-                    <div className="px-4 py-3 border-b" style={{ borderColor: 'rgba(124,127,245,0.1)' }}>
-                      <p className="text-xs font-semibold text-white truncate">{user.name}</p>
-                      <p className="text-[10px] text-[#4a476a] truncate">{user.email}</p>
-                      <span className={`mt-1 inline-block text-[9px] font-semibold px-1.5 py-0.5 rounded-full capitalize ${user.plan === 'pro' ? 'badge-ready' : 'badge-pending'}`}>
-                        {user.plan}
-                      </span>
-                    </div>
-
-                    {/* GitHub status */}
-                    <div className="px-4 py-2 border-b" style={{ borderColor: 'rgba(124,127,245,0.1)' }}>
-                      <div className="flex items-center gap-2">
-                        <Github className="w-3 h-3 text-[#4a476a]" />
-                        <span className="text-[10px] text-[#4a476a]">GitHub:</span>
-                        {user.hasGithubToken
-                          ? <span className="text-[10px] text-emerald-400 font-medium">@{user.githubUsername}</span>
-                          : <span className="text-[10px] text-amber-400">Not connected</span>
-                        }
+                    <div className="px-4 py-3" style={{ borderBottom: '1px solid rgba(148,163,184,0.08)' }}>
+                      <div className="flex items-center gap-2.5">
+                        <Avatar user={user} size={32} />
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-semibold text-slate-100 truncate">{user.name}</p>
+                          <p className="text-[11px] text-slate-500 truncate">{user.email}</p>
+                        </div>
+                      </div>
+                      <div className="mt-2.5 flex items-center gap-2">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full capitalize ${user.plan === 'pro' ? 'badge-ready' : 'badge-pending'}`}>
+                          {user.plan}
+                        </span>
+                        {user.hasGithubToken && user.githubUsername && (
+                          <span className="text-[10px] text-slate-500 flex items-center gap-1">
+                            <Github className="w-2.5 h-2.5" />@{user.githubUsername}
+                          </span>
+                        )}
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => { setOpen(false); navigate('/settings'); }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-[#8b88a6] hover:text-white hover:bg-white/5 transition-colors"
-                    >
-                      <Settings className="w-3.5 h-3.5" /> Settings
-                    </button>
-                    <button
-                      onClick={() => { setOpen(false); navigate('/profile'); }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-[#8b88a6] hover:text-white hover:bg-white/5 transition-colors"
-                    >
-                      <User className="w-3.5 h-3.5" /> Profile
-                    </button>
+                    <div className="py-1">
+                      <DropItem icon={Settings} label="Settings" onClick={() => { setOpen(false); navigate('/settings'); }} />
+                      <DropItem icon={User} label="Profile" onClick={() => { setOpen(false); navigate('/settings'); }} />
+                    </div>
 
-                    <div className="border-t my-1" style={{ borderColor: 'rgba(124,127,245,0.1)' }} />
-                    <button
-                      onClick={handleLogout}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
-                    >
-                      <LogOut className="w-3.5 h-3.5" /> Sign out
-                    </button>
+                    <div style={{ borderTop: '1px solid rgba(148,163,184,0.08)', marginTop: '4px', paddingTop: '4px' }}>
+                      <DropItem icon={LogOut} label="Sign out" onClick={handleLogout} danger />
+                    </div>
                   </div>
                 )}
               </div>
             </>
           ) : (
             <div className="flex items-center gap-2">
-              <Link to="/login"
-                className="text-xs font-medium text-[#8b88a6] hover:text-white px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors">
+              <Link
+                to="/login"
+                className="text-[13px] font-medium px-3.5 py-1.5 rounded-lg transition-colors"
+                style={{ color: '#94a3b8' }}
+              >
                 Sign in
               </Link>
-              <Link to="/register"
-                className="btn-primary text-white text-xs font-semibold px-4 py-1.5 rounded-lg">
+              <Link
+                to="/register"
+                className="btn-primary text-white text-[13px] px-4 py-1.5 rounded-lg"
+              >
                 Get Started
               </Link>
             </div>
@@ -164,5 +174,70 @@ export default function Navbar() {
         </div>
       </div>
     </header>
+  );
+}
+
+function NavLink({ to, label, active }) {
+  return (
+    <Link
+      to={to}
+      className="text-[13px] font-medium px-3 py-1.5 rounded-lg transition-all"
+      style={{
+        color: active ? '#60a5fa' : '#64748b',
+        background: active ? 'rgba(59,130,246,0.1)' : 'transparent',
+      }}
+    >
+      {label}
+    </Link>
+  );
+}
+
+function Avatar({ user, size }) {
+  if (user?.avatarUrl) {
+    return (
+      <img
+        src={user.avatarUrl}
+        className="rounded-full object-cover"
+        style={{ width: size, height: size, minWidth: size }}
+        alt={user.name}
+      />
+    );
+  }
+  return (
+    <div
+      className="rounded-full flex items-center justify-center font-bold"
+      style={{
+        width: size,
+        height: size,
+        minWidth: size,
+        background: 'linear-gradient(135deg, #1d4ed8, #0ea5e9)',
+        fontSize: size * 0.38,
+        color: '#fff',
+        fontFamily: "'Space Grotesk', sans-serif",
+      }}
+    >
+      {user?.name?.charAt(0)?.toUpperCase()}
+    </div>
+  );
+}
+
+function DropItem({ icon: Icon, label, onClick, danger }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full flex items-center gap-2.5 px-4 py-2 text-[13px] transition-colors text-left"
+      style={{ color: danger ? '#f87171' : '#94a3b8' }}
+      onMouseEnter={e => {
+        e.currentTarget.style.background = danger ? 'rgba(239,68,68,0.08)' : 'rgba(148,163,184,0.06)';
+        e.currentTarget.style.color = danger ? '#fca5a5' : '#e2e8f0';
+      }}
+      onMouseLeave={e => {
+        e.currentTarget.style.background = 'transparent';
+        e.currentTarget.style.color = danger ? '#f87171' : '#94a3b8';
+      }}
+    >
+      <Icon className="w-3.5 h-3.5 shrink-0" />
+      {label}
+    </button>
   );
 }
