@@ -4,10 +4,14 @@ import useAuthStore from '../store/authStore';
 
 /**
  * Wraps routes that require authentication.
- * Redirects to /login preserving the intended destination via location.state.
+ * Shows a loading screen only during the initial session check (app mount),
+ * never during form submits.
  */
 export function ProtectedRoute({ children }) {
-  const { user, loading } = useAuthStore();
+  const user    = useAuthStore(s => s.user);
+  // `loading` is only true during initAuth() called once at mount.
+  // It is NOT set true during login/register form submissions.
+  const loading = useAuthStore(s => s.loading);
   const location = useLocation();
 
   if (loading) {
@@ -45,9 +49,10 @@ export function ProtectedRoute({ children }) {
  * Redirects to /dashboard if already authenticated.
  */
 export function GuestRoute({ children }) {
-  const { user, loading } = useAuthStore();
+  const user    = useAuthStore(s => s.user);
+  const loading = useAuthStore(s => s.loading);
 
-  // Don't flash login page while checking session
+  // Don't flash login page while checking initial session
   if (loading) return null;
 
   if (user) {

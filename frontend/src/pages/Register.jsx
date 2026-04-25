@@ -31,45 +31,50 @@ export default function Register() {
   const [email,      setEmail]      = useState('');
   const [password,   setPassword]   = useState('');
   const [show,       setShow]       = useState(false);
-  const [localError, setLocalError] = useState('');
+  const [error,      setError]      = useState('');
+  const [loading,    setLoading]    = useState(false);
 
-  const { register, loading, error, clearError } = useAuthStore();
+  // Only pull the register function — not loading/error from store
+  const registerFn = useAuthStore(s => s.register);
+
   const navigate = useNavigate();
 
   const validate = () => {
-    if (!name.trim())    return 'Please enter your full name.';
-    if (!email.trim())   return 'Please enter your email address.';
+    if (!name.trim())         return 'Please enter your full name.';
+    if (!email.trim())        return 'Please enter your email address.';
     if (!email.includes('@')) return 'Please enter a valid email address.';
-    if (!password)       return 'Please enter a password.';
-    if (password.length < 8) return 'Password must be at least 8 characters.';
+    if (!password)            return 'Please enter a password.';
+    if (password.length < 8)  return 'Password must be at least 8 characters.';
     return null;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLocalError('');
-    clearError();
 
     const validationError = validate();
     if (validationError) {
-      setLocalError(validationError);
+      setError(validationError);
       return;
-      // NOTE: form entries (name, email, password) are NOT cleared — preserved for user to fix
     }
 
-    const result = await register(name.trim(), email.trim(), password);
+    setError('');
+    setLoading(true);
+
+    const result = await registerFn(name.trim(), email.trim(), password);
+
+    setLoading(false);
+
     if (result.ok) {
       navigate('/dashboard');
+    } else {
+      setError(result.error || 'Registration failed. Please try again.');
     }
-    // On failure: name, email, password state untouched — user can fix and retry
   };
-
-  const displayError = localError || error;
-  const passwordStrong = password.length >= 8 && /[A-Z]/.test(password) && /\d/.test(password);
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 mesh-bg">
       <div className="w-full max-w-sm">
+
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
           <div
@@ -101,7 +106,7 @@ export default function Register() {
           }}
         >
           {/* Error banner */}
-          {displayError && (
+          {error && (
             <div
               className="flex items-start gap-2.5 text-[13px] p-3 rounded-xl"
               style={{
@@ -111,11 +116,12 @@ export default function Register() {
               }}
             >
               <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
-              <span>{displayError}</span>
+              <span>{error}</span>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+
             {/* Full name */}
             <div className="space-y-1.5">
               <label
@@ -127,7 +133,7 @@ export default function Register() {
               <input
                 type="text"
                 value={name}
-                onChange={e => { setName(e.target.value); setLocalError(''); clearError(); }}
+                onChange={e => setName(e.target.value)}
                 required
                 autoComplete="name"
                 placeholder="Jane Smith"
@@ -148,7 +154,7 @@ export default function Register() {
               <input
                 type="email"
                 value={email}
-                onChange={e => { setEmail(e.target.value); setLocalError(''); clearError(); }}
+                onChange={e => setEmail(e.target.value)}
                 required
                 autoComplete="email"
                 placeholder="you@example.com"
@@ -170,7 +176,7 @@ export default function Register() {
                 <input
                   type={show ? 'text' : 'password'}
                   value={password}
-                  onChange={e => { setPassword(e.target.value); setLocalError(''); clearError(); }}
+                  onChange={e => setPassword(e.target.value)}
                   required
                   autoComplete="new-password"
                   placeholder="Min. 8 characters"
@@ -188,7 +194,7 @@ export default function Register() {
                   {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
-              {/* Live password strength — only shown while typing */}
+              {/* Live password strength */}
               <PasswordStrength password={password} />
             </div>
 
@@ -211,6 +217,7 @@ export default function Register() {
                 </>
               )}
             </button>
+
           </form>
 
           <p className="text-center text-[13px] text-slate-500">

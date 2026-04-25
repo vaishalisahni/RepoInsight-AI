@@ -6,10 +6,12 @@ const useAuthStore = create(
   persist(
     (set, get) => ({
       user:    null,   // { id, name, email, plan, hasGithubToken, githubUsername, avatarUrl }
-      loading: true,   // true while checking initial session
-      error:   null,
+      loading: true,   // true ONLY while checking initial session on app mount — NOT during form submits
+      error:   null,   // kept for legacy usage in some components, but forms use local state
 
       // ── Bootstrap: check if cookie session is still valid ────────────
+      // Called once on app mount from App.jsx — sets loading=true then false
+      // Forms should NOT use this loading flag
       initAuth: async () => {
         set({ loading: true, error: null });
         try {
@@ -21,30 +23,33 @@ const useAuthStore = create(
       },
 
       // ── Register ─────────────────────────────────────────────────────
+      // Returns { ok: true } or { ok: false, error: string }
+      // Does NOT touch store loading — caller manages its own loading state
       register: async (name, email, password) => {
-        set({ loading: true, error: null });
+        set({ error: null });
         try {
           const data = await apiRegister(name, email, password);
-          set({ user: data.user, loading: false, error: null });
+          set({ user: data.user, error: null });
           return { ok: true };
         } catch (err) {
           const msg = err.response?.data?.error || err.message || 'Registration failed. Please try again.';
-          set({ error: msg, loading: false });
+          set({ error: msg });
           return { ok: false, error: msg };
         }
       },
 
       // ── Login ────────────────────────────────────────────────────────
+      // Returns { ok: true } or { ok: false, error: string }
+      // Does NOT touch store loading — caller manages its own loading state
       login: async (email, password) => {
-        set({ loading: true, error: null });
+        set({ error: null });
         try {
           const data = await apiLogin(email, password);
-          set({ user: data.user, loading: false, error: null });
+          set({ user: data.user, error: null });
           return { ok: true };
         } catch (err) {
-          // Provide a clear, specific error message
           let msg = 'Something went wrong. Please try again.';
-          const status = err.response?.status;
+          const status    = err.response?.status;
           const serverMsg = err.response?.data?.error;
 
           if (status === 401) {
@@ -55,11 +60,11 @@ const useAuthStore = create(
             msg = serverMsg;
           } else if (serverMsg) {
             msg = serverMsg;
-          } else if (!navigator.onLine) {
+          } else if (typeof navigator !== 'undefined' && !navigator.onLine) {
             msg = 'No internet connection. Please check your network.';
           }
 
-          set({ error: msg, loading: false });
+          set({ error: msg });
           return { ok: false, error: msg };
         }
       },
@@ -78,7 +83,7 @@ const useAuthStore = create(
     }),
     {
       name:       'repoinsight-auth',
-      // Only persist the user object (not loading/error state)
+      // Only persist the user object — never persist loading or error
       partialize: s => ({ user: s.user }),
     }
   )

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Code2, Eye, EyeOff, Loader2, AlertCircle, ArrowRight } from 'lucide-react';
 import useAuthStore from '../store/authStore';
@@ -7,11 +7,11 @@ export default function Login() {
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
   const [show,     setShow]     = useState(false);
-  const [error,    setError]    = useState('');   // purely local — never wiped by store
+  const [error,    setError]    = useState('');
   const [loading,  setLoading]  = useState(false);
 
-  // Pull ONLY the login function from store — not loading/error
-  // so Zustand re-renders on other state changes don't clear our local error
+  // Only pull the login function — never pull loading/error from store
+  // so store re-renders don't wipe our local error state
   const loginFn = useAuthStore(s => s.login);
 
   const navigate = useNavigate();
@@ -20,35 +20,31 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
 
+    // Client-side validation first (never clears existing error from a previous attempt)
     const trimmedEmail = email.trim();
-
     if (!trimmedEmail) { setError('Please enter your email address.'); return; }
     if (!password)     { setError('Please enter your password.');       return; }
 
+    setError('');
     setLoading(true);
+
     const result = await loginFn(trimmedEmail, password);
+
     setLoading(false);
 
     if (result.ok) {
       navigate(from, { replace: true });
     } else {
-      // email + password inputs are NOT cleared — user can fix and retry
-      const msg = result.error || '';
-      if (
-        msg.toLowerCase().includes('invalid') ||
-        msg.toLowerCase().includes('incorrect') ||
-        msg.toLowerCase().includes('password') ||
-        msg.toLowerCase().includes('credentials')
-      ) {
+      const msg = (result.error || '').toLowerCase();
+      if (msg.includes('invalid') || msg.includes('incorrect') || msg.includes('password') || msg.includes('credentials')) {
         setError('Incorrect email or password. Please try again.');
-      } else if (msg.toLowerCase().includes('too many') || msg.toLowerCase().includes('rate')) {
+      } else if (msg.includes('too many') || msg.includes('rate')) {
         setError('Too many attempts. Please wait a few minutes and try again.');
-      } else if (msg.toLowerCase().includes('not found') || msg.toLowerCase().includes('no account')) {
+      } else if (msg.includes('not found') || msg.includes('no account')) {
         setError('No account found with this email address.');
-      } else if (msg) {
-        setError(msg);
+      } else if (result.error) {
+        setError(result.error);
       } else {
         setError('Something went wrong. Please try again.');
       }
@@ -89,7 +85,7 @@ export default function Login() {
             backdropFilter: 'blur(20px)',
           }}
         >
-          {/* Error banner — stays visible until user starts typing */}
+          {/* Error banner — only cleared on successful submit, never on typing */}
           {error && (
             <div
               className="flex items-start gap-2.5 p-3 rounded-xl text-[13px]"
@@ -117,7 +113,7 @@ export default function Login() {
               <input
                 type="email"
                 value={email}
-                onChange={e => { setEmail(e.target.value); if (error) setError(''); }}
+                onChange={e => setEmail(e.target.value)}
                 autoComplete="email"
                 placeholder="you@example.com"
                 disabled={loading}
@@ -138,7 +134,7 @@ export default function Login() {
                 <input
                   type={show ? 'text' : 'password'}
                   value={password}
-                  onChange={e => { setPassword(e.target.value); if (error) setError(''); }}
+                  onChange={e => setPassword(e.target.value)}
                   autoComplete="current-password"
                   placeholder="••••••••"
                   disabled={loading}
