@@ -40,7 +40,13 @@
     --border:       rgba(148, 163, 184, 0.1);
     --border-hover: rgba(148, 163, 184, 0.2);
     --border-accent:rgba(59, 130, 246, 0.25);
-    --mobile-nav-height: 60px;
+    --mobile-nav-height: 0px;
+  }
+
+  @media (max-width: 768px) {
+    :root {
+      --mobile-nav-height: 60px;
+    }
   }
 
   ::selection { background: rgba(59, 130, 246, 0.3); color: #fff; }
@@ -235,6 +241,17 @@ input:focus, textarea:focus, select:focus {
     transition: all 0.15s;
     min-height: unset;
   }
+
+  /* Push content above mobile nav on dashboard */
+  .dashboard-content {
+    padding-bottom: calc(60px + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* Ensure chat input area is always above the mobile nav */
+  .chat-input-area {
+    position: relative;
+    z-index: 10;
+  }
 }
 
 /* ── Mobile Sidebar Overlay ─────────────────────────────────────────────── */
@@ -250,11 +267,6 @@ input:focus, textarea:focus, select:focus {
     background: rgba(0,0,0,0.6);
     z-index: 39;
     backdrop-filter: blur(4px);
-  }
-
-  /* Give chat/content bottom padding so it's not behind mobile nav */
-  .mobile-content-pad {
-    padding-bottom: calc(60px + env(safe-area-inset-bottom));
   }
 
   /* Safe area top for notch phones */

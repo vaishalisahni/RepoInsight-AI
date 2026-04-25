@@ -1,9 +1,8 @@
 import { useState } from 'react';
-import { Github, Key, Trash2, CheckCircle2, AlertCircle, Loader2, User, Lock, LogOut, ExternalLink, Shield, Bell } from 'lucide-react';
+import { Github, Key, Trash2, CheckCircle2, AlertCircle, Loader2, User, Lock, LogOut, ExternalLink, Shield } from 'lucide-react';
 import { saveGithubToken, removeGithubToken, updateProfile } from '../api/client';
 import useAuthStore from '../store/authStore';
 
-/* ── Shared sub-components ───────────────────────────────────────────────── */
 function Section({ icon: Icon, title, subtitle, children }) {
   return (
     <section
@@ -11,7 +10,7 @@ function Section({ icon: Icon, title, subtitle, children }) {
       style={{ background: 'rgba(12,16,32,0.8)', border: '1px solid rgba(148,163,184,0.09)' }}
     >
       <div
-        className="px-6 py-4 flex items-center gap-3"
+        className="px-4 md:px-6 py-4 flex items-center gap-3"
         style={{ borderBottom: '1px solid rgba(148,163,184,0.07)' }}
       >
         <div
@@ -27,7 +26,7 @@ function Section({ icon: Icon, title, subtitle, children }) {
           {subtitle && <p className="text-[12px] text-slate-500 mt-0.5">{subtitle}</p>}
         </div>
       </div>
-      <div className="p-6">{children}</div>
+      <div className="p-4 md:p-6">{children}</div>
     </section>
   );
 }
@@ -62,7 +61,6 @@ function Toast({ msg }) {
   );
 }
 
-/* ── GitHub Section ──────────────────────────────────────────────────────── */
 function GitHubSection() {
   const { user, updateUser } = useAuthStore();
   const [token,   setToken]   = useState('');
@@ -172,7 +170,6 @@ function GitHubSection() {
   );
 }
 
-/* ── Profile Section ─────────────────────────────────────────────────────── */
 function ProfileSection() {
   const { user, updateUser } = useAuthStore();
   const [name,    setName]    = useState(user?.name || '');
@@ -199,7 +196,7 @@ function ProfileSection() {
   return (
     <Section icon={User} title="Profile" subtitle="Manage your account details">
       <form onSubmit={handleSave} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Full name">
             <input
               value={name}
@@ -262,7 +259,6 @@ function ProfileSection() {
   );
 }
 
-/* ── Plan Section ────────────────────────────────────────────────────────── */
 function PlanSection() {
   const { user, logout } = useAuthStore();
   return (
@@ -295,23 +291,27 @@ function PlanSection() {
   );
 }
 
-/* ── Settings page ───────────────────────────────────────────────────────── */
 export default function Settings() {
   return (
-    <div className="max-w-2xl mx-auto px-6 py-10 space-y-5">
-      <div className="mb-6">
-        <h1
-          className="text-[22px] font-bold text-slate-100"
-          style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.02em' }}
-        >
-          Settings
-        </h1>
-        <p className="text-[13px] text-slate-500 mt-1">Manage your account and integrations</p>
-      </div>
+    <div
+      className="h-full overflow-y-auto"
+      style={{ WebkitOverflowScrolling: 'touch' }}
+    >
+      <div className="max-w-2xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-5 pb-20">
+        <div className="mb-6">
+          <h1
+            className="text-[20px] md:text-[22px] font-bold text-slate-100"
+            style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.02em' }}
+          >
+            Settings
+          </h1>
+          <p className="text-[13px] text-slate-500 mt-1">Manage your account and integrations</p>
+        </div>
 
-      <PlanSection />
-      <GitHubSection />
-      <ProfileSection />
+        <PlanSection />
+        <GitHubSection />
+        <ProfileSection />
+      </div>
     </div>
   );
 }

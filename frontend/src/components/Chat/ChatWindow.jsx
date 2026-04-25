@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import {
   Send, RotateCcw, Sparkles, MessageSquare, History,
-  Download, Copy, Check, ChevronLeft, ChevronRight, Clock
+  Download, Copy, Check, ChevronLeft, Clock
 } from 'lucide-react';
 import { queryRepo, getSessions } from '../../api/client';
 import useAppStore from '../../store/appStore';
@@ -160,7 +160,7 @@ export default function ChatWindow() {
         <div
           className="shrink-0 flex flex-col overflow-hidden"
           style={{
-            width: '240px',
+            width: '220px',
             borderRight: '1px solid rgba(148,163,184,0.08)',
             background: 'rgba(6,8,16,0.95)',
           }}
@@ -173,14 +173,10 @@ export default function ChatWindow() {
               <History className="w-3.5 h-3.5 text-blue-400" />
               <span className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">History</span>
             </div>
-            <button
-              onClick={() => setShowHistory(false)}
-              className="text-slate-600 hover:text-slate-400 transition-colors"
-            >
+            <button onClick={() => setShowHistory(false)} className="text-slate-600 hover:text-slate-400 transition-colors">
               <ChevronLeft className="w-4 h-4" />
             </button>
           </div>
-
           <div className="flex-1 overflow-y-auto p-2">
             {loadingSessions ? (
               <div className="flex items-center justify-center py-8">
@@ -201,16 +197,10 @@ export default function ChatWindow() {
                   onMouseEnter={e => e.currentTarget.style.border = '1px solid rgba(59,130,246,0.15)'}
                   onMouseLeave={e => e.currentTarget.style.border = '1px solid transparent'}
                 >
-                  <p className="text-[12px] text-slate-300 truncate mb-1 font-medium">
-                    {formatSessionPreview(session)}
-                  </p>
+                  <p className="text-[12px] text-slate-300 truncate mb-1 font-medium">{formatSessionPreview(session)}</p>
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-slate-600">
-                      {session.messages?.length || 0} messages
-                    </span>
-                    <span className="text-[10px] text-slate-700">
-                      {formatSessionDate(session.updatedAt || session.createdAt)}
-                    </span>
+                    <span className="text-[10px] text-slate-600">{session.messages?.length || 0} messages</span>
+                    <span className="text-[10px] text-slate-700">{formatSessionDate(session.updatedAt || session.createdAt)}</span>
                   </div>
                 </button>
               ))
@@ -223,38 +213,27 @@ export default function ChatWindow() {
       <div className="flex flex-col flex-1 overflow-hidden" style={{ minHeight: 0 }}>
         {/* Header */}
         <div
-          className="flex items-center justify-between px-3 md:px-5 py-3 shrink-0"
+          className="flex items-center justify-between px-3 md:px-5 py-2.5 shrink-0"
           style={{
             borderBottom:   '1px solid rgba(148,163,184,0.08)',
             background:     'rgba(8,11,20,0.8)',
             backdropFilter: 'blur(10px)',
+            minHeight: '48px',
           }}
         >
           <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={() => setShowHistory(v => !v)}
-              title="Session history"
-              className="p-1.5 rounded-lg transition-colors mr-1 shrink-0"
-              style={{
-                background: showHistory ? 'rgba(59,130,246,0.12)' : 'transparent',
-                color: showHistory ? '#60a5fa' : '#475569',
-              }}
+              className="p-1.5 rounded-lg transition-colors shrink-0"
+              style={{ background: showHistory ? 'rgba(59,130,246,0.12)' : 'transparent', color: showHistory ? '#60a5fa' : '#475569' }}
             >
-              {showHistory ? <ChevronLeft className="w-3.5 h-3.5" /> : <History className="w-3.5 h-3.5" />}
+              <History className="w-3.5 h-3.5" />
             </button>
-
             <MessageSquare className="w-4 h-4 text-blue-400 shrink-0" />
             <div className="min-w-0">
               <p className="text-[13px] font-semibold text-slate-100 truncate" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                 {activeRepo?.name?.includes('/') ? activeRepo.name.split('/').pop() : activeRepo?.name || 'Chat'}
               </p>
-              {activeRepo && (
-                <p className="text-[10px] text-slate-600 truncate" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-                  {(activeRepo.totalFiles || 0).toLocaleString()} files
-                  {' · '}
-                  {(activeRepo.totalChunks || 0).toLocaleString()} chunks
-                </p>
-              )}
             </div>
           </div>
 
@@ -262,26 +241,21 @@ export default function ChatWindow() {
             <div className="flex items-center gap-1 shrink-0 ml-2">
               <button
                 onClick={copyMarkdown}
-                title="Copy"
                 className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
               >
                 {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                <span className="hidden sm:inline">{copied ? 'Copied!' : 'Copy'}</span>
               </button>
               <button
                 onClick={exportMarkdown}
-                title="Export"
                 className="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
               >
                 <Download className="w-3 h-3" />
-                Export
               </button>
               <button
                 onClick={clearMessages}
                 className="flex items-center gap-1 text-[12px] text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
               >
                 <RotateCcw className="w-3 h-3" />
-                <span className="hidden sm:inline">New</span>
               </button>
             </div>
           )}
@@ -289,7 +263,7 @@ export default function ChatWindow() {
 
         {/* Messages */}
         <div
-          className="px-3 md:px-5 py-4 md:py-5 space-y-4 overflow-y-auto"
+          className="px-3 md:px-5 py-4 space-y-4 overflow-y-auto"
           style={{ flex: '1 1 0', minHeight: 0, WebkitOverflowScrolling: 'touch' }}
         >
           {messages.length === 0 && (
@@ -300,34 +274,22 @@ export default function ChatWindow() {
               >
                 <Sparkles className="w-5 h-5 text-blue-400" />
               </div>
-              <h3
-                className="text-[14px] md:text-[15px] font-semibold text-slate-100 mb-1.5"
-                style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-              >
+              <h3 className="text-[14px] md:text-[15px] font-semibold text-slate-100 mb-1.5" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                 Ask anything about this codebase
               </h3>
-              <p className="text-[12px] text-slate-500 mb-6 max-w-xs leading-relaxed">
-                {activeRepoId
-                  ? 'Questions are tailored to your detected tech stack and frameworks.'
-                  : 'Select or index a repository first.'}
+              <p className="text-[12px] text-slate-500 mb-5 max-w-xs leading-relaxed">
+                {activeRepoId ? 'Questions are tailored to your detected tech stack.' : 'Select or index a repository first.'}
               </p>
-
               {activeRepoId && (
-                <div className="grid grid-cols-2 gap-2 w-full max-w-md">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-md">
                   {starters.map(s => (
                     <button
                       key={s}
                       onClick={() => send(s)}
                       className="text-left text-[11px] md:text-[12px] text-slate-500 px-3 py-2.5 rounded-xl hover:text-slate-300 transition-all"
                       style={{ background: 'rgba(16,23,41,0.7)', border: '1px solid rgba(148,163,184,0.08)' }}
-                      onMouseEnter={e => {
-                        e.currentTarget.style.border     = '1px solid rgba(59,130,246,0.2)';
-                        e.currentTarget.style.background = 'rgba(59,130,246,0.06)';
-                      }}
-                      onMouseLeave={e => {
-                        e.currentTarget.style.border     = '1px solid rgba(148,163,184,0.08)';
-                        e.currentTarget.style.background = 'rgba(16,23,41,0.7)';
-                      }}
+                      onMouseEnter={e => { e.currentTarget.style.border = '1px solid rgba(59,130,246,0.2)'; e.currentTarget.style.background = 'rgba(59,130,246,0.06)'; }}
+                      onMouseLeave={e => { e.currentTarget.style.border = '1px solid rgba(148,163,184,0.08)'; e.currentTarget.style.background = 'rgba(16,23,41,0.7)'; }}
                     >
                       {s}
                     </button>
@@ -339,26 +301,17 @@ export default function ChatWindow() {
 
           {messages.map((msg, i) => <MessageBubble key={i} message={msg} />)}
 
-          {/* Typing indicator */}
           {isLoading && (
             <div className="flex items-start gap-2.5">
-              <div
-                className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[9px] font-bold text-white"
-                style={{ background: 'linear-gradient(135deg, #2563eb, #0ea5e9)', minWidth: '24px' }}
-              >
+              <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[9px] font-bold text-white"
+                style={{ background: 'linear-gradient(135deg, #2563eb, #0ea5e9)', minWidth: '24px' }}>
                 AI
               </div>
-              <div
-                className="px-4 py-3 rounded-2xl rounded-tl-sm"
-                style={{ background: 'rgba(16,23,41,0.8)', border: '1px solid rgba(148,163,184,0.08)' }}
-              >
+              <div className="px-4 py-3 rounded-2xl rounded-tl-sm"
+                style={{ background: 'rgba(16,23,41,0.8)', border: '1px solid rgba(148,163,184,0.08)' }}>
                 <div className="flex gap-1.5 items-center h-4">
-                  {[0, 1, 2].map(i => (
-                    <span
-                      key={i}
-                      className="typing-dot w-1.5 h-1.5 rounded-full inline-block"
-                      style={{ background: '#60a5fa' }}
-                    />
+                  {[0,1,2].map(i => (
+                    <span key={i} className="typing-dot w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#60a5fa' }} />
                   ))}
                 </div>
               </div>
@@ -368,14 +321,18 @@ export default function ChatWindow() {
           <div ref={bottomRef} />
         </div>
 
-        {/* Input */}
+        {/* Input — fixed at bottom, always visible */}
         <div
-          className="px-3 md:px-4 py-2.5 md:py-3 shrink-0"
-          style={{ borderTop: '1px solid rgba(148,163,184,0.08)' }}
+          className="shrink-0 px-3 md:px-4 py-2.5 md:py-3"
+          style={{
+            borderTop: '1px solid rgba(148,163,184,0.08)',
+            background: 'rgba(8,11,20,0.95)',
+            paddingBottom: 'max(10px, env(safe-area-inset-bottom))',
+          }}
         >
           <div
             className="flex gap-2 items-end rounded-xl px-3 py-2"
-            style={{ background: 'rgba(16,23,41,0.9)', border: '1px solid rgba(148,163,184,0.12)' }}
+            style={{ background: 'rgba(16,23,41,0.9)', border: '1px solid rgba(148,163,184,0.15)' }}
           >
             <textarea
               ref={textareaRef}
@@ -386,10 +343,10 @@ export default function ChatWindow() {
               disabled={!activeRepoId}
               rows={1}
               className="flex-1 bg-transparent outline-none text-[14px] py-0.5 resize-none"
-              style={{ color: '#e2e8f0', caretColor: '#60a5fa', maxHeight: '120px', fontFamily: "'Manrope', sans-serif" }}
+              style={{ color: '#e2e8f0', caretColor: '#60a5fa', maxHeight: '100px', fontFamily: "'Manrope', sans-serif", minHeight: '24px' }}
               onInput={e => {
                 e.target.style.height = 'auto';
-                e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+                e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px';
               }}
             />
             <button
