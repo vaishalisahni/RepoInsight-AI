@@ -8,7 +8,6 @@ const useAppStore = create((set, get) => ({
 
   setRepos: (repos) => {
     set({ repos });
-    // If a repo is active and its data updated (e.g. after indexing), refresh it
     const { activeRepoId } = get();
     if (activeRepoId) {
       const updated = repos.find(r => r._id === activeRepoId);
@@ -52,6 +51,11 @@ const useAppStore = create((set, get) => ({
 
   sidebarOpen:   true,
   toggleSidebar: () => set(s => ({ sidebarOpen: !s.sidebarOpen })),
+
+  // ── Code Viewer Modal ─────────────────────────────────────────────────────
+  // { filePath, startLine, endLine, snippet }
+  codeViewer:    null,
+  setCodeViewer: (data) => set({ codeViewer: data }),
 }));
 
 export default useAppStore;

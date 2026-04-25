@@ -1,7 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Github, ArrowRight, Loader2, CheckCircle2, XCircle, Zap, GitBranch, Brain, Sparkles, Code2, Upload, ChevronRight, Activity } from 'lucide-react';
+import {
+  Github, ArrowRight, Loader2, XCircle, Zap, GitBranch,
+  Brain, Sparkles, Upload, ChevronRight, Activity, FileArchive,
+  CheckCircle2
+} from 'lucide-react';
 import { ingestGithub, getRepos, getRepoStatus, deleteRepo } from '../api/client';
+import api from '../api/client';
 import useAppStore from '../store/appStore';
 
 const DEMO_REPOS = [
@@ -26,16 +31,40 @@ function StatusBadge({ status }) {
   );
 }
 
+// ZIP upload via multipart/form-data
+async function ingestZip(file, name) {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (name) formData.append('name', name);
+  const res = await api.post('/ingest', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 300000,
+  });
+  return res.data;
+}
+
 export default function Home() {
-  const [url,       setUrl]       = useState('');
-  const [loading,   setLoading]   = useState(false);
-  const [pollingId, setPollingId] = useState(null);
-  const [statusMsg, setStatusMsg] = useState('');
-  const [error,     setError]     = useState('');
+  const [url,        setUrl]        = useState('');
+  const [loading,    setLoading]    = useState(false);
+  const [pollingId,  setPollingId]  = useState(null);
+  const [statusMsg,  setStatusMsg]  = useState('');
+  const [error,      setError]      = useState('');
+  const [inputMode,  setInputMode]  = useState('url'); // 'url' | 'zip'
+  const [dragOver,   setDragOver]   = useState(false);
+  const [zipFile,    setZipFile]    = useState(null);
+  const [zipName,    setZipName]    = useState('');
+  const fileInputRef = useRef(null);
   const { repos, setRepos, setActiveRepo } = useAppStore();
   const navigate = useNavigate();
 
   useEffect(() => { getRepos().then(setRepos).catch(() => {}); }, []);
+
+  // Request notification permission once
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
 
   useEffect(() => {
     if (!pollingId) return;
@@ -51,6 +80,15 @@ export default function Home() {
             const fresh = await getRepos();
             setRepos(fresh);
             setStatusMsg('');
+            setZipFile(null);
+            setZipName('');
+            // Browser notification
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification('RepoInsight — Indexing Complete ✓', {
+                body: `${s.name} is ready. ${s.totalFiles} files, ${s.totalChunks} chunks indexed.`,
+                icon: '/favicon.svg',
+              });
+            }
           } else {
             setError('Indexing failed. Check your repository URL and try again.');
           }
@@ -73,6 +111,35 @@ export default function Home() {
     }
   };
 
+  const handleZipIngest = async () => {
+    if (!zipFile) return;
+    setError(''); setStatusMsg(''); setLoading(true);
+    try {
+      const data = await ingestZip(zipFile, zipName || zipFile.name.replace(/\.zip$/, ''));
+      setPollingId(data.repoId);
+      setStatusMsg('Extracting ZIP…');
+    } catch (e) {
+      setError(e.response?.data?.error || e.message);
+      setLoading(false);
+    }
+  };
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    if (file && (file.name.endsWith('.zip') || file.type === 'application/zip')) {
+      setZipFile(file);
+      setZipName(file.name.replace(/\.zip$/, ''));
+      setInputMode('zip');
+    } else {
+      setError('Only ZIP files are supported for upload.');
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e) => { e.preventDefault(); setDragOver(true); }, []);
+  const handleDragLeave = useCallback(() => setDragOver(false), []);
+
   const openRepo = (repo) => {
     setActiveRepo(repo._id);
     navigate('/dashboard');
@@ -85,11 +152,34 @@ export default function Home() {
     setRepos(await getRepos());
   };
 
-  const readyRepos    = repos.filter(r => r.status === 'ready');
-  const pendingRepos  = repos.filter(r => r.status !== 'ready');
+  const readyRepos = repos.filter(r => r.status === 'ready');
 
   return (
-    <div className="min-h-screen mesh-bg">
+    <div
+      className="min-h-screen mesh-bg"
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+    >
+      {/* Global drag overlay */}
+      {dragOver && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{
+            background: 'rgba(59,130,246,0.15)',
+            border: '3px dashed rgba(59,130,246,0.6)',
+            backdropFilter: 'blur(4px)',
+          }}
+        >
+          <div className="text-center">
+            <FileArchive className="w-16 h-16 text-blue-400 mx-auto mb-4" />
+            <p className="text-xl font-bold text-blue-300" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              Drop ZIP to index
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Hero */}
       <div className="max-w-4xl mx-auto px-6 pt-20 pb-16">
         {/* Badge */}
@@ -116,7 +206,7 @@ export default function Home() {
         </h1>
 
         <p className="text-center text-[15px] text-slate-400 max-w-xl mx-auto mb-10 leading-relaxed">
-          Index any GitHub repository. Ask questions in plain English. Trace execution flows, visualize dependencies, and onboard faster.
+          Index any GitHub repository or upload a ZIP. Ask questions in plain English. Trace execution flows, visualize dependencies, and onboard faster.
         </p>
 
         {/* Ingest card */}
@@ -124,57 +214,164 @@ export default function Home() {
           className="max-w-2xl mx-auto rounded-2xl p-5 mb-3"
           style={{ background: 'rgba(12, 16, 32, 0.9)', border: '1px solid rgba(148,163,184,0.1)', backdropFilter: 'blur(20px)' }}
         >
-          <p
-            className="text-[11px] font-semibold uppercase tracking-widest mb-3"
-            style={{ color: '#475569' }}
-          >
-            GitHub Repository URL
-          </p>
-          <div className="flex gap-2.5">
-            <div
-              className="flex-1 flex items-center gap-2.5 rounded-xl px-3.5"
-              style={{ background: 'rgba(16,23,41,0.8)', border: '1px solid rgba(148,163,184,0.12)', height: '44px' }}
-            >
-              <Github className="w-4 h-4 shrink-0" style={{ color: '#475569' }} />
-              <input
-                value={url}
-                onChange={e => setUrl(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleIngest()}
-                placeholder="https://github.com/owner/repo"
-                className="flex-1 bg-transparent outline-none text-[14px]"
-                style={{ color: '#f1f5f9', fontFamily: "'IBM Plex Mono', monospace" }}
-              />
-            </div>
-            <button
-              onClick={handleIngest}
-              disabled={loading || !url.trim()}
-              className="btn-primary text-white text-[13px] font-semibold px-5 rounded-xl flex items-center gap-2 whitespace-nowrap"
-              style={{ height: '44px' }}
-            >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
-              {loading ? 'Indexing…' : 'Index Repo'}
-            </button>
-          </div>
-
-          {/* Quick picks */}
-          <div className="mt-3 flex items-center gap-2 flex-wrap">
-            <span className="text-[11px]" style={{ color: '#334155' }}>Try:</span>
-            {DEMO_REPOS.map(r => (
+          {/* Mode tabs */}
+          <div className="flex gap-1 mb-4 p-1 rounded-xl" style={{ background: 'rgba(16,23,41,0.6)' }}>
+            {[
+              { id: 'url',  icon: Github,      label: 'GitHub URL' },
+              { id: 'zip',  icon: FileArchive, label: 'Upload ZIP' },
+            ].map(tab => (
               <button
-                key={r.url}
-                onClick={() => setUrl(r.url)}
-                className="text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors"
+                key={tab.id}
+                onClick={() => setInputMode(tab.id)}
+                className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] font-semibold transition-all"
                 style={{
-                  background: 'rgba(59,130,246,0.06)',
-                  border: '1px solid rgba(59,130,246,0.12)',
-                  color: '#60a5fa',
-                  fontFamily: "'IBM Plex Mono', monospace",
+                  background: inputMode === tab.id ? 'rgba(59,130,246,0.15)' : 'transparent',
+                  color: inputMode === tab.id ? '#60a5fa' : '#475569',
+                  border: inputMode === tab.id ? '1px solid rgba(59,130,246,0.25)' : '1px solid transparent',
                 }}
               >
-                {r.label}
+                <tab.icon className="w-3.5 h-3.5" />
+                {tab.label}
               </button>
             ))}
           </div>
+
+          {inputMode === 'url' ? (
+            <>
+              <p className="text-[11px] font-semibold uppercase tracking-widest mb-3" style={{ color: '#475569' }}>
+                GitHub Repository URL
+              </p>
+              <div className="flex gap-2.5">
+                <div
+                  className="flex-1 flex items-center gap-2.5 rounded-xl px-3.5"
+                  style={{ background: 'rgba(16,23,41,0.8)', border: '1px solid rgba(148,163,184,0.12)', height: '44px' }}
+                >
+                  <Github className="w-4 h-4 shrink-0" style={{ color: '#475569' }} />
+                  <input
+                    value={url}
+                    onChange={e => setUrl(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleIngest()}
+                    placeholder="https://github.com/owner/repo"
+                    className="flex-1 bg-transparent outline-none text-[14px]"
+                    style={{ color: '#f1f5f9', fontFamily: "'IBM Plex Mono', monospace" }}
+                  />
+                </div>
+                <button
+                  onClick={handleIngest}
+                  disabled={loading || !url.trim()}
+                  className="btn-primary text-white text-[13px] font-semibold px-5 rounded-xl flex items-center gap-2 whitespace-nowrap"
+                  style={{ height: '44px' }}
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                  {loading ? 'Indexing…' : 'Index Repo'}
+                </button>
+              </div>
+
+              {/* Quick picks */}
+              <div className="mt-3 flex items-center gap-2 flex-wrap">
+                <span className="text-[11px]" style={{ color: '#334155' }}>Try:</span>
+                {DEMO_REPOS.map(r => (
+                  <button
+                    key={r.url}
+                    onClick={() => setUrl(r.url)}
+                    className="text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors"
+                    style={{
+                      background: 'rgba(59,130,246,0.06)',
+                      border: '1px solid rgba(59,130,246,0.12)',
+                      color: '#60a5fa',
+                      fontFamily: "'IBM Plex Mono', monospace",
+                    }}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-[11px] font-semibold uppercase tracking-widest mb-3" style={{ color: '#475569' }}>
+                Upload ZIP Archive
+              </p>
+
+              {/* Drop zone */}
+              <div
+                onClick={() => !zipFile && fileInputRef.current?.click()}
+                className="relative rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-all cursor-pointer"
+                style={{
+                  border: `2px dashed ${zipFile ? 'rgba(16,185,129,0.4)' : 'rgba(59,130,246,0.25)'}`,
+                  background: zipFile ? 'rgba(16,185,129,0.05)' : 'rgba(59,130,246,0.04)',
+                  minHeight: '120px',
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  const file = e.dataTransfer.files[0];
+                  if (file?.name.endsWith('.zip')) { setZipFile(file); setZipName(file.name.replace(/\.zip$/, '')); }
+                }}
+                onDragOver={e => e.preventDefault()}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".zip"
+                  className="hidden"
+                  onChange={e => {
+                    const f = e.target.files[0];
+                    if (f) { setZipFile(f); setZipName(f.name.replace(/\.zip$/, '')); }
+                  }}
+                />
+                {zipFile ? (
+                  <>
+                    <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+                    <div className="text-center">
+                      <p className="text-[13px] font-semibold text-emerald-300">{zipFile.name}</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">{(zipFile.size / 1024 / 1024).toFixed(1)} MB</p>
+                    </div>
+                    <button
+                      onClick={e => { e.stopPropagation(); setZipFile(null); setZipName(''); }}
+                      className="text-[11px] text-slate-500 hover:text-red-400 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-8 h-8" style={{ color: '#3b82f6' }} />
+                    <div className="text-center">
+                      <p className="text-[13px] font-semibold text-slate-300">Drop ZIP here or click to browse</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Max 100 MB • .zip files only</p>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {zipFile && (
+                <div className="mt-3 flex gap-2.5">
+                  <div
+                    className="flex-1 flex items-center rounded-xl px-3.5"
+                    style={{ background: 'rgba(16,23,41,0.8)', border: '1px solid rgba(148,163,184,0.12)', height: '40px' }}
+                  >
+                    <input
+                      value={zipName}
+                      onChange={e => setZipName(e.target.value)}
+                      placeholder="Repository name (optional)"
+                      className="flex-1 bg-transparent outline-none text-[13px]"
+                      style={{ color: '#f1f5f9' }}
+                    />
+                  </div>
+                  <button
+                    onClick={handleZipIngest}
+                    disabled={loading}
+                    className="btn-primary text-white text-[13px] font-semibold px-5 rounded-xl flex items-center gap-2 whitespace-nowrap"
+                    style={{ height: '40px' }}
+                  >
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                    {loading ? 'Indexing…' : 'Index ZIP'}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
 
           {/* Status messages */}
           {statusMsg && (
@@ -196,10 +393,7 @@ export default function Home() {
       {repos.length > 0 && (
         <div className="max-w-4xl mx-auto px-6 pb-12">
           <div className="flex items-center justify-between mb-4">
-            <h2
-              className="text-[13px] font-bold uppercase tracking-widest"
-              style={{ color: '#334155' }}
-            >
+            <h2 className="text-[13px] font-bold uppercase tracking-widest" style={{ color: '#334155' }}>
               Indexed Repositories
             </h2>
             <span className="text-[11px] text-slate-600">{readyRepos.length} ready</span>
@@ -254,16 +448,10 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <p
-                    className="text-[13px] font-semibold text-slate-200 truncate mb-0.5"
-                    style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-                  >
+                  <p className="text-[13px] font-semibold text-slate-200 truncate mb-0.5" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                     {shortName}
                   </p>
-                  <p
-                    className="text-[10px] text-slate-600 truncate mb-3"
-                    style={{ fontFamily: "'IBM Plex Mono', monospace" }}
-                  >
+                  <p className="text-[10px] text-slate-600 truncate mb-3" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
                     {repo.name}
                   </p>
 
@@ -297,10 +485,7 @@ export default function Home() {
       {/* Features */}
       <div className="max-w-4xl mx-auto px-6 pb-20">
         {repos.length === 0 && (
-          <p
-            className="text-center text-[12px] font-bold uppercase tracking-widest mb-6"
-            style={{ color: '#1e2d45' }}
-          >
+          <p className="text-center text-[12px] font-bold uppercase tracking-widest mb-6" style={{ color: '#1e2d45' }}>
             What you can do
           </p>
         )}
@@ -319,10 +504,7 @@ export default function Home() {
                 >
                   <Icon className="w-4 h-4" style={{ color: '#60a5fa' }} />
                 </div>
-                <p
-                  className="text-[13px] font-semibold text-slate-200 mb-1"
-                  style={{ fontFamily: "'Space Grotesk', sans-serif" }}
-                >
+                <p className="text-[13px] font-semibold text-slate-200 mb-1" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                   {f.title}
                 </p>
                 <p className="text-[11px] text-slate-500 leading-relaxed">{f.desc}</p>
