@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import {
   Github, ArrowRight, Loader2, XCircle, Zap, GitBranch,
   Brain, Sparkles, Upload, ChevronRight, Activity, FileArchive,
-  CheckCircle2
+  CheckCircle2, RefreshCw
 } from 'lucide-react';
-import { ingestGithub, getRepos, getRepoStatus, deleteRepo } from '../api/client';
+import { ingestGithub, getRepos, getRepoStatus, deleteRepo, reindexRepo } from '../api/client';
 import api from '../api/client';
 import useAppStore from '../store/appStore';
 
@@ -31,7 +31,6 @@ function StatusBadge({ status }) {
   );
 }
 
-// ZIP upload via multipart/form-data
 async function ingestZip(file, name) {
   const formData = new FormData();
   formData.append('file', file);
@@ -49,7 +48,7 @@ export default function Home() {
   const [pollingId,  setPollingId]  = useState(null);
   const [statusMsg,  setStatusMsg]  = useState('');
   const [error,      setError]      = useState('');
-  const [inputMode,  setInputMode]  = useState('url'); // 'url' | 'zip'
+  const [inputMode,  setInputMode]  = useState('url');
   const [dragOver,   setDragOver]   = useState(false);
   const [zipFile,    setZipFile]    = useState(null);
   const [zipName,    setZipName]    = useState('');
@@ -59,7 +58,6 @@ export default function Home() {
 
   useEffect(() => { getRepos().then(setRepos).catch(() => {}); }, []);
 
-  // Request notification permission once
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
@@ -82,7 +80,6 @@ export default function Home() {
             setStatusMsg('');
             setZipFile(null);
             setZipName('');
-            // Browser notification
             if ('Notification' in window && Notification.permission === 'granted') {
               new Notification('RepoInsight — Indexing Complete ✓', {
                 body: `${s.name} is ready. ${s.totalFiles} files, ${s.totalChunks} chunks indexed.`,
@@ -152,11 +149,23 @@ export default function Home() {
     setRepos(await getRepos());
   };
 
+  const handleReindex = async (e, id) => {
+    e.stopPropagation();
+    try {
+      await reindexRepo(id);
+      const fresh = await getRepos();
+      setRepos(fresh);
+    } catch (err) {
+      console.error('Reindex failed:', err);
+    }
+  };
+
   const readyRepos = repos.filter(r => r.status === 'ready');
 
   return (
+    /* KEY FIX: overflow-y-auto on this div makes the home page scrollable */
     <div
-      className="min-h-screen mesh-bg"
+      className="overflow-y-auto h-full mesh-bg"
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -250,8 +259,9 @@ export default function Home() {
                   <input
                     value={url}
                     onChange={e => setUrl(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleIngest()}
+                    onKeyDown={e => e.key === 'Enter' && !loading && handleIngest()}
                     placeholder="https://github.com/owner/repo"
+                    disabled={loading}
                     className="flex-1 bg-transparent outline-none text-[14px]"
                     style={{ color: '#f1f5f9', fontFamily: "'IBM Plex Mono', monospace" }}
                   />
@@ -259,7 +269,7 @@ export default function Home() {
                 <button
                   onClick={handleIngest}
                   disabled={loading || !url.trim()}
-                  className="btn-primary text-white text-[13px] font-semibold px-5 rounded-xl flex items-center gap-2 whitespace-nowrap"
+                  className="btn-primary text-white text-[13px] font-semibold px-5 rounded-xl flex items-center gap-2 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
                   style={{ height: '44px' }}
                 >
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
@@ -274,7 +284,8 @@ export default function Home() {
                   <button
                     key={r.url}
                     onClick={() => setUrl(r.url)}
-                    className="text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors"
+                    disabled={loading}
+                    className="text-[11px] font-medium px-2.5 py-1 rounded-lg transition-colors disabled:opacity-40"
                     style={{
                       background: 'rgba(59,130,246,0.06)',
                       border: '1px solid rgba(59,130,246,0.12)',
@@ -293,14 +304,14 @@ export default function Home() {
                 Upload ZIP Archive
               </p>
 
-              {/* Drop zone */}
               <div
-                onClick={() => !zipFile && fileInputRef.current?.click()}
-                className="relative rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-all cursor-pointer"
+                onClick={() => !zipFile && !loading && fileInputRef.current?.click()}
+                className="relative rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-all"
                 style={{
                   border: `2px dashed ${zipFile ? 'rgba(16,185,129,0.4)' : 'rgba(59,130,246,0.25)'}`,
                   background: zipFile ? 'rgba(16,185,129,0.05)' : 'rgba(59,130,246,0.04)',
                   minHeight: '120px',
+                  cursor: zipFile || loading ? 'default' : 'pointer',
                 }}
                 onDrop={(e) => {
                   e.preventDefault();
@@ -339,7 +350,7 @@ export default function Home() {
                     <Upload className="w-8 h-8" style={{ color: '#3b82f6' }} />
                     <div className="text-center">
                       <p className="text-[13px] font-semibold text-slate-300">Drop ZIP here or click to browse</p>
-                      <p className="text-[11px] text-slate-500 mt-0.5">Max 100 MB • .zip files only</p>
+                      <p className="text-[11px] text-slate-500 mt-0.5">Max 100 MB · .zip files only</p>
                     </div>
                   </>
                 )}
@@ -362,7 +373,7 @@ export default function Home() {
                   <button
                     onClick={handleZipIngest}
                     disabled={loading}
-                    className="btn-primary text-white text-[13px] font-semibold px-5 rounded-xl flex items-center gap-2 whitespace-nowrap"
+                    className="btn-primary text-white text-[13px] font-semibold px-5 rounded-xl flex items-center gap-2 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
                     style={{ height: '40px' }}
                   >
                     {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
@@ -403,6 +414,7 @@ export default function Home() {
             {repos.map(repo => {
               const shortName = repo.name.includes('/') ? repo.name.split('/').pop() : repo.name;
               const isReady = repo.status === 'ready';
+              const isIndexing = repo.status === 'indexing';
 
               return (
                 <div
@@ -439,6 +451,16 @@ export default function Home() {
                     </div>
                     <div className="flex items-center gap-2">
                       <StatusBadge status={repo.status} />
+                      {/* Reindex button for ready/error repos */}
+                      {(isReady || repo.status === 'error') && (
+                        <button
+                          onClick={e => handleReindex(e, repo._id)}
+                          title="Re-index repository"
+                          className="opacity-0 group-hover:opacity-100 p-1 rounded-lg transition-all text-slate-600 hover:text-blue-400 hover:bg-blue-500/10"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                       <button
                         onClick={e => handleDelete(e, repo._id)}
                         className="opacity-0 group-hover:opacity-100 p-1 rounded-lg transition-all text-slate-600 hover:text-red-400 hover:bg-red-500/10"
@@ -467,7 +489,7 @@ export default function Home() {
                       </span>
                     </div>
                   )}
-                  {repo.status === 'indexing' && (
+                  {isIndexing && (
                     <div className="flex items-center gap-1.5 text-[11px] text-amber-400">
                       <Loader2 className="w-3 h-3 animate-spin" /> Indexing…
                     </div>
