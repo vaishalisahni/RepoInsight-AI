@@ -10,7 +10,6 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
   const dropRef   = useRef(null);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handler = (e) => {
       if (dropRef.current && !dropRef.current.contains(e.target)) setOpen(false);
@@ -26,9 +25,6 @@ export default function Navbar() {
   };
 
   const isActive = (path) => location.pathname === path;
-
-  // On the dashboard, the sidebar already acts as the primary nav.
-  // Keep navbar minimal: just the wordmark + user menu.
   const isDashboard = location.pathname === '/dashboard';
 
   return (
@@ -43,34 +39,32 @@ export default function Navbar() {
       }}
     >
       <div
-        className="h-full flex items-center px-5 gap-4"
+        className="h-full flex items-center px-3 md:px-5 gap-2 md:gap-4"
         style={{ maxWidth: '100%' }}
       >
         {/* ── Logo / wordmark ── */}
         <Link
           to="/"
-          className="flex items-center gap-2.5 shrink-0 group"
+          className="flex items-center gap-2 md:gap-2.5 shrink-0 group"
           style={{ textDecoration: 'none' }}
         >
-          {/* Icon — only shown on non-dashboard pages to avoid duplication with sidebar logo */}
           {!isDashboard && (
             <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center transition-all group-hover:scale-105 shrink-0"
+              className="w-7 h-7 md:w-8 md:h-8 rounded-lg flex items-center justify-center transition-all group-hover:scale-105 shrink-0"
               style={{
                 background:  'linear-gradient(135deg, #1d4ed8 0%, #3b82f6 60%, #0ea5e9 100%)',
                 boxShadow:   '0 0 16px rgba(59,130,246,0.3)',
               }}
             >
-              <Code2 className="w-4 h-4 text-white" strokeWidth={2.5} />
+              <Code2 className="w-3.5 h-3.5 md:w-4 md:h-4 text-white" strokeWidth={2.5} />
             </div>
           )}
 
-          {/* Text — always visible */}
           <span
             className="font-bold tracking-tight"
             style={{
               fontFamily: "'Space Grotesk', sans-serif",
-              fontSize:   '15px',
+              fontSize:   '14px',
               color:      isDashboard ? '#475569' : '#f1f5f9',
               letterSpacing: '-0.01em',
             }}
@@ -78,7 +72,6 @@ export default function Navbar() {
             RepoInsight
           </span>
 
-          {/* AI badge */}
           <span
             className="text-[9px] font-bold px-1.5 py-0.5 rounded-md hidden sm:block"
             style={{
@@ -92,7 +85,7 @@ export default function Navbar() {
           </span>
         </Link>
 
-        {/* ── Nav links — hidden on dashboard (sidebar handles nav) ── */}
+        {/* ── Nav links ── */}
         {!isDashboard && (
           <nav className="flex items-center gap-1 flex-1">
             {user && <NavLink to="/"          label="Home"      active={isActive('/')} />}
@@ -101,14 +94,13 @@ export default function Navbar() {
           </nav>
         )}
 
-        {/* Spacer when on dashboard */}
         {isDashboard && <div className="flex-1" />}
 
         {/* ── Right side ── */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
           {user ? (
             <>
-              {/* GitHub token warning — only on non-dashboard */}
+              {/* GitHub token warning — only on non-dashboard, hidden on small mobile */}
               {!isDashboard && !user.hasGithubToken && (
                 <Link
                   to="/settings"
@@ -128,7 +120,7 @@ export default function Navbar() {
               <div className="relative" ref={dropRef}>
                 <button
                   onClick={() => setOpen(v => !v)}
-                  className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl transition-all"
+                  className="flex items-center gap-1.5 md:gap-2 px-2 py-1.5 rounded-xl transition-all"
                   style={{
                     background: open ? 'rgba(148,163,184,0.08)' : 'transparent',
                     border:     '1px solid rgba(148,163,184,0.1)',
@@ -136,7 +128,7 @@ export default function Navbar() {
                 >
                   <Avatar user={user} size={26} />
                   <span
-                    className="text-[13px] font-medium text-slate-200 hidden sm:block max-w-[100px] truncate"
+                    className="text-[13px] font-medium text-slate-200 hidden sm:block max-w-[80px] truncate"
                   >
                     {user.name}
                   </span>
@@ -147,8 +139,9 @@ export default function Navbar() {
 
                 {open && (
                   <div
-                    className="absolute right-0 top-full mt-2 w-56 rounded-xl py-1.5 z-50"
+                    className="absolute right-0 top-full mt-2 rounded-xl py-1.5 z-50"
                     style={{
+                      width:          '220px',
                       background:     'rgba(10,14,26,0.98)',
                       border:         '1px solid rgba(148,163,184,0.12)',
                       backdropFilter: 'blur(20px)',
@@ -210,17 +203,17 @@ export default function Navbar() {
               </div>
             </>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 md:gap-2">
               <Link
                 to="/login"
-                className="text-[13px] font-medium px-3.5 py-1.5 rounded-lg transition-colors"
+                className="text-[13px] font-medium px-2.5 md:px-3.5 py-1.5 rounded-lg transition-colors"
                 style={{ color: '#94a3b8' }}
               >
                 Sign in
               </Link>
               <Link
                 to="/register"
-                className="btn-primary text-white text-[13px] px-4 py-1.5 rounded-lg"
+                className="btn-primary text-white text-[12px] md:text-[13px] px-3 md:px-4 py-1.5 rounded-lg"
               >
                 Get Started
               </Link>
@@ -231,8 +224,6 @@ export default function Navbar() {
     </header>
   );
 }
-
-/* ── Sub-components ── */
 
 function NavLink({ to, label, active }) {
   return (

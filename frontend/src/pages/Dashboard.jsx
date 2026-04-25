@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Sidebar         from '../components/Sidebar';
 import ChatWindow      from '../components/Chat/ChatWindow';
 import DependencyGraph from '../components/Graph/DependencyGraph';
@@ -9,10 +9,19 @@ import TechStackBadge  from '../components/TechStack/TechStackBadge';
 import CodeViewerModal from '../components/Chat/CodeViewerModal';
 import useAppStore     from '../store/appStore';
 import { getGraph }    from '../api/client';
-import { Loader2, AlertCircle, GitBranch } from 'lucide-react';
+import { Loader2, AlertCircle, GitBranch, MessageSquare, Activity, Zap, Menu, X, BookOpen } from 'lucide-react';
+
+const MOBILE_TABS = [
+  { id: 'chat',   icon: MessageSquare, label: 'Chat'   },
+  { id: 'graph',  icon: GitBranch,     label: 'Graph'  },
+  { id: 'trace',  icon: Activity,      label: 'Trace'  },
+  { id: 'impact', icon: Zap,           label: 'Impact' },
+  { id: 'repos',  icon: BookOpen,      label: 'Repos'  },
+];
 
 export default function Dashboard() {
-  const { activeRepoId, activeRepo, activeTab, graphData, setGraphData } = useAppStore();
+  const { activeRepoId, activeRepo, activeTab, setActiveTab, graphData, setGraphData } = useAppStore();
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (activeRepoId && activeTab === 'graph' && !graphData) {
@@ -22,11 +31,38 @@ export default function Dashboard() {
     }
   }, [activeTab, activeRepoId]);
 
+  // Close sidebar on tab change (mobile)
+  const handleMobileTab = (tabId) => {
+    if (tabId === 'repos') {
+      setMobileSidebarOpen(true);
+    } else {
+      setActiveTab(tabId);
+      setMobileSidebarOpen(false);
+    }
+  };
+
   if (!activeRepoId) {
     return (
       <div className="flex h-full">
-        <Sidebar />
-        <div className="flex-1 flex items-center justify-center text-center">
+        {/* Sidebar — hidden on mobile unless open */}
+        <div
+          className="hidden md:block"
+          style={{ flexShrink: 0 }}
+        >
+          <Sidebar />
+        </div>
+
+        {/* Mobile sidebar overlay */}
+        {mobileSidebarOpen && (
+          <>
+            <div className="sidebar-mobile-overlay" onClick={() => setMobileSidebarOpen(false)} />
+            <div style={{ position: 'fixed', left: 0, top: 0, bottom: 0, zIndex: 40 }}>
+              <Sidebar onClose={() => setMobileSidebarOpen(false)} />
+            </div>
+          </>
+        )}
+
+        <div className="flex-1 flex items-center justify-center text-center px-4">
           <div>
             <GitBranch className="w-12 h-12 mx-auto mb-4" style={{ color: '#1e2d45' }} />
             <p className="text-slate-500 text-sm">No repository selected.</p>
@@ -35,26 +71,54 @@ export default function Dashboard() {
             </p>
           </div>
         </div>
+
+        {/* Mobile bottom nav */}
+        <div className="mobile-bottom-nav">
+          {MOBILE_TABS.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => handleMobileTab(tab.id)}
+              style={{ color: '#475569' }}
+            >
+              <tab.icon style={{ width: 20, height: 20 }} />
+              <span>{tab.label}</span>
+            </button>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex overflow-hidden" style={{ height: '100%' }}>
-      <Sidebar />
+      {/* Desktop Sidebar */}
+      <div className="hidden md:block" style={{ flexShrink: 0, height: '100%' }}>
+        <Sidebar />
+      </div>
+
+      {/* Mobile sidebar overlay */}
+      {mobileSidebarOpen && (
+        <>
+          <div className="sidebar-mobile-overlay" onClick={() => setMobileSidebarOpen(false)} />
+          <div style={{ position: 'fixed', left: 0, top: 0, bottom: 0, zIndex: 40 }}>
+            <Sidebar onClose={() => setMobileSidebarOpen(false)} />
+          </div>
+        </>
+      )}
 
       {/* ── Main content column ── */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
 
-        {/* Tech-stack header bar */}
+        {/* Tech-stack header bar — scrollable on mobile */}
         {activeRepo?.techStack?.frameworks?.length > 0 && (
           <div
-            className="shrink-0 px-5 py-2 flex items-center gap-3 overflow-x-auto"
+            className="shrink-0 px-3 md:px-5 py-2 flex items-center gap-3 overflow-x-auto"
             style={{
               borderBottom:   '1px solid rgba(148,163,184,0.08)',
               background:     'rgba(10,14,26,0.8)',
               backdropFilter: 'blur(8px)',
               minHeight:      '42px',
+              WebkitOverflowScrolling: 'touch',
             }}
           >
             <span className="text-[10px] text-slate-700 font-semibold uppercase tracking-wider whitespace-nowrap">
@@ -80,9 +144,11 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Tab panels */}
-        <div className="flex-1 overflow-hidden min-h-0">
-
+        {/* Tab panels — add bottom padding on mobile for nav bar */}
+        <div
+          className="flex-1 overflow-hidden min-h-0"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
           {/* CHAT TAB */}
           {activeTab === 'chat' && (
             <div className="flex h-full overflow-hidden">
@@ -90,9 +156,9 @@ export default function Dashboard() {
                 <ChatWindow />
               </div>
 
-              {/* Right summary panel */}
+              {/* Right summary panel — hidden on mobile */}
               <div
-                className="w-72 shrink-0 flex flex-col overflow-hidden"
+                className="hidden lg:flex w-72 shrink-0 flex-col overflow-hidden"
                 style={{
                   borderLeft:  '1px solid rgba(148,163,184,0.08)',
                   background:  'rgba(8,11,20,0.6)',
@@ -115,7 +181,7 @@ export default function Dashboard() {
 
           {/* GRAPH TAB */}
           {activeTab === 'graph' && (
-            <div className="h-full p-4">
+            <div className="h-full p-2 md:p-4">
               {!graphData ? (
                 <div className="h-full flex items-center justify-center">
                   <div className="text-center">
@@ -147,7 +213,26 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Code viewer modal — rendered at top level so it overlays everything */}
+      {/* Mobile bottom nav */}
+      <div className="mobile-bottom-nav md:hidden">
+        {MOBILE_TABS.map(tab => {
+          const isActive = tab.id === 'repos' ? mobileSidebarOpen : (activeTab === tab.id && !mobileSidebarOpen);
+          return (
+            <button
+              key={tab.id}
+              onClick={() => handleMobileTab(tab.id)}
+              style={{
+                color: isActive ? '#60a5fa' : '#475569',
+              }}
+            >
+              <tab.icon style={{ width: 20, height: 20 }} />
+              <span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Code viewer modal */}
       <CodeViewerModal />
     </div>
   );

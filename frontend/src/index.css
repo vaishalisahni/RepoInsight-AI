@@ -18,43 +18,33 @@
   }
 
   :root {
-    /* Core palette */
     --bg-0:   #080b14;
     --bg-50:  #0c1020;
     --bg-100: #101729;
     --bg-200: #151e35;
     --bg-300: #1c2745;
     --bg-400: #243052;
-
-    /* Accent — electric cyan-blue */
     --accent:        #3b82f6;
     --accent-bright: #60a5fa;
     --accent-dim:    #1d4ed8;
     --accent-glow:   rgba(59, 130, 246, 0.2);
     --accent-border: rgba(59, 130, 246, 0.3);
-
-    /* Semantic */
     --success:    #10b981;
     --warning:    #f59e0b;
     --danger:     #ef4444;
     --info:       #38bdf8;
-
-    /* Text */
     --text-primary:   #f1f5f9;
     --text-secondary: #94a3b8;
     --text-muted:     #475569;
     --text-faint:     #2d3a52;
-
-    /* Borders */
     --border:       rgba(148, 163, 184, 0.1);
     --border-hover: rgba(148, 163, 184, 0.2);
     --border-accent:rgba(59, 130, 246, 0.25);
+    --mobile-nav-height: 60px;
   }
 
-  /* Selection */
   ::selection { background: rgba(59, 130, 246, 0.3); color: #fff; }
 
-  /* Scrollbar */
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: rgba(148,163,184,0.15); border-radius: 99px; }
@@ -205,4 +195,70 @@ input:focus, textarea:focus, select:focus {
     radial-gradient(ellipse at 85% 80%, rgba(16,185,129,0.05) 0%, transparent 50%),
     radial-gradient(ellipse at 50% 50%, rgba(99,102,241,0.04) 0%, transparent 65%),
     #080b14;
+}
+
+/* ── Mobile Bottom Nav ───────────────────────────────────────────────────── */
+.mobile-bottom-nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    background: rgba(8,11,20,0.98);
+    border-top: 1px solid rgba(148,163,184,0.1);
+    padding: 6px 0;
+    padding-bottom: calc(6px + env(safe-area-inset-bottom));
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .mobile-bottom-nav button {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 6px 4px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    transition: all 0.15s;
+    min-height: unset;
+  }
+}
+
+/* ── Mobile Sidebar Overlay ─────────────────────────────────────────────── */
+.sidebar-mobile-overlay {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .sidebar-mobile-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 39;
+    backdrop-filter: blur(4px);
+  }
+
+  /* Give chat/content bottom padding so it's not behind mobile nav */
+  .mobile-content-pad {
+    padding-bottom: calc(60px + env(safe-area-inset-bottom));
+  }
+
+  /* Safe area top for notch phones */
+  .mobile-safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
 }

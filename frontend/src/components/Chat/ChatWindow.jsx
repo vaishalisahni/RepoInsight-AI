@@ -76,7 +76,6 @@ export default function ChatWindow() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
-  // Load sessions when history panel opens
   useEffect(() => {
     if (showHistory && activeRepoId) {
       setLoadingSessions(true);
@@ -117,7 +116,6 @@ export default function ChatWindow() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   };
 
-  // Export chat as Markdown
   const exportMarkdown = () => {
     if (!messages.length) return;
     const lines = messages.map(m => {
@@ -137,7 +135,6 @@ export default function ChatWindow() {
     URL.revokeObjectURL(url);
   };
 
-  // Copy all as markdown to clipboard
   const copyMarkdown = async () => {
     if (!messages.length) return;
     const lines = messages.map(m => {
@@ -149,7 +146,6 @@ export default function ChatWindow() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Load a past session
   const loadSession = (session) => {
     clearMessages();
     session.messages.forEach(m => addMessage({ role: m.role, content: m.content, sources: m.sources }));
@@ -162,8 +158,9 @@ export default function ChatWindow() {
       {/* Session history panel */}
       {showHistory && (
         <div
-          className="w-64 shrink-0 flex flex-col overflow-hidden"
+          className="shrink-0 flex flex-col overflow-hidden"
           style={{
+            width: '240px',
             borderRight: '1px solid rgba(148,163,184,0.08)',
             background: 'rgba(6,8,16,0.95)',
           }}
@@ -226,19 +223,18 @@ export default function ChatWindow() {
       <div className="flex flex-col flex-1 overflow-hidden" style={{ minHeight: 0 }}>
         {/* Header */}
         <div
-          className="flex items-center justify-between px-5 py-3 shrink-0"
+          className="flex items-center justify-between px-3 md:px-5 py-3 shrink-0"
           style={{
             borderBottom:   '1px solid rgba(148,163,184,0.08)',
             background:     'rgba(8,11,20,0.8)',
             backdropFilter: 'blur(10px)',
           }}
         >
-          <div className="flex items-center gap-2.5">
-            {/* History toggle */}
+          <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={() => setShowHistory(v => !v)}
               title="Session history"
-              className="p-1.5 rounded-lg transition-colors mr-1"
+              className="p-1.5 rounded-lg transition-colors mr-1 shrink-0"
               style={{
                 background: showHistory ? 'rgba(59,130,246,0.12)' : 'transparent',
                 color: showHistory ? '#60a5fa' : '#475569',
@@ -247,48 +243,45 @@ export default function ChatWindow() {
               {showHistory ? <ChevronLeft className="w-3.5 h-3.5" /> : <History className="w-3.5 h-3.5" />}
             </button>
 
-            <MessageSquare className="w-4 h-4 text-blue-400" />
-            <div>
-              <p className="text-[13px] font-semibold text-slate-100" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            <MessageSquare className="w-4 h-4 text-blue-400 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-[13px] font-semibold text-slate-100 truncate" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
                 {activeRepo?.name?.includes('/') ? activeRepo.name.split('/').pop() : activeRepo?.name || 'Chat'}
               </p>
               {activeRepo && (
-                <p className="text-[10px] text-slate-600" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                <p className="text-[10px] text-slate-600 truncate" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
                   {(activeRepo.totalFiles || 0).toLocaleString()} files
                   {' · '}
                   {(activeRepo.totalChunks || 0).toLocaleString()} chunks
-                  {activeRepo.techStack?.primaryLanguage && ` · ${activeRepo.techStack.primaryLanguage}`}
                 </p>
               )}
             </div>
           </div>
 
           {messages.length > 0 && (
-            <div className="flex items-center gap-1">
-              {/* Copy markdown */}
+            <div className="flex items-center gap-1 shrink-0 ml-2">
               <button
                 onClick={copyMarkdown}
-                title="Copy as Markdown"
-                className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                title="Copy"
+                className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
               >
                 {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                {copied ? 'Copied!' : 'Copy'}
+                <span className="hidden sm:inline">{copied ? 'Copied!' : 'Copy'}</span>
               </button>
-              {/* Export markdown */}
               <button
                 onClick={exportMarkdown}
-                title="Export as Markdown"
-                className="flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                title="Export"
+                className="hidden sm:flex items-center gap-1.5 text-[11px] text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
               >
                 <Download className="w-3 h-3" />
                 Export
               </button>
-              {/* New chat */}
               <button
                 onClick={clearMessages}
-                className="flex items-center gap-1.5 text-[12px] text-slate-500 hover:text-slate-300 px-2.5 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
+                className="flex items-center gap-1 text-[12px] text-slate-500 hover:text-slate-300 px-2 py-1.5 rounded-lg hover:bg-white/5 transition-colors"
               >
-                <RotateCcw className="w-3 h-3" /> New chat
+                <RotateCcw className="w-3 h-3" />
+                <span className="hidden sm:inline">New</span>
               </button>
             </div>
           )}
@@ -296,8 +289,8 @@ export default function ChatWindow() {
 
         {/* Messages */}
         <div
-          className="px-5 py-5 space-y-4 overflow-y-auto"
-          style={{ flex: '1 1 0', minHeight: 0 }}
+          className="px-3 md:px-5 py-4 md:py-5 space-y-4 overflow-y-auto"
+          style={{ flex: '1 1 0', minHeight: 0, WebkitOverflowScrolling: 'touch' }}
         >
           {messages.length === 0 && (
             <div className="flex flex-col items-center justify-center h-full text-center px-4">
@@ -308,7 +301,7 @@ export default function ChatWindow() {
                 <Sparkles className="w-5 h-5 text-blue-400" />
               </div>
               <h3
-                className="text-[15px] font-semibold text-slate-100 mb-1.5"
+                className="text-[14px] md:text-[15px] font-semibold text-slate-100 mb-1.5"
                 style={{ fontFamily: "'Space Grotesk', sans-serif" }}
               >
                 Ask anything about this codebase
@@ -325,7 +318,7 @@ export default function ChatWindow() {
                     <button
                       key={s}
                       onClick={() => send(s)}
-                      className="text-left text-[12px] text-slate-500 px-3 py-2.5 rounded-xl hover:text-slate-300 transition-all"
+                      className="text-left text-[11px] md:text-[12px] text-slate-500 px-3 py-2.5 rounded-xl hover:text-slate-300 transition-all"
                       style={{ background: 'rgba(16,23,41,0.7)', border: '1px solid rgba(148,163,184,0.08)' }}
                       onMouseEnter={e => {
                         e.currentTarget.style.border     = '1px solid rgba(59,130,246,0.2)';
@@ -377,7 +370,7 @@ export default function ChatWindow() {
 
         {/* Input */}
         <div
-          className="px-4 py-3 shrink-0"
+          className="px-3 md:px-4 py-2.5 md:py-3 shrink-0"
           style={{ borderTop: '1px solid rgba(148,163,184,0.08)' }}
         >
           <div
@@ -408,7 +401,7 @@ export default function ChatWindow() {
               <Send className="w-3.5 h-3.5" />
             </button>
           </div>
-          <p className="text-center text-[10px] text-slate-700 mt-1.5">
+          <p className="text-center text-[10px] text-slate-700 mt-1 hidden sm:block">
             Enter to send · Shift+Enter for new line
           </p>
         </div>
