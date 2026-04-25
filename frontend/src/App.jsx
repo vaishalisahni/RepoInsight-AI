@@ -11,11 +11,8 @@ import Navbar from './components/Navbar';
 import { Outlet } from 'react-router-dom';
 
 /**
- * Layout:  navbar (56px, shrink-0)  +  content (flex-1, overflow-hidden)
- *
- * Using 100dvh (or 100vh fallback) on the root ensures the app never
- * overflows the viewport. Each child that needs scroll manages it
- * internally via overflow-y-auto on its own scrollable container.
+ * Layout: navbar (56px fixed) + scrollable content area
+ * Using 100dvh so it handles mobile browser chrome correctly.
  */
 function Layout() {
   return (
@@ -23,12 +20,11 @@ function Layout() {
       style={{
         display:       'flex',
         flexDirection: 'column',
-        height:        '100dvh',   // dynamic viewport height — handles mobile chrome bar
+        height:        '100dvh',
         overflow:      'hidden',
       }}
     >
       <Navbar />
-      {/* Content area fills the remaining height exactly */}
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <Outlet />
       </div>
@@ -38,7 +34,11 @@ function Layout() {
 
 export default function App() {
   const initAuth = useAuthStore(s => s.initAuth);
-  useEffect(() => { initAuth(); }, []);
+
+  // Check session once on mount
+  useEffect(() => {
+    initAuth();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <BrowserRouter>
@@ -47,15 +47,15 @@ export default function App() {
           {/* Public */}
           <Route path="/" element={<Home />} />
 
-          {/* Guest-only */}
+          {/* Guest-only (redirect to dashboard if already logged in) */}
           <Route path="/login"    element={<GuestRoute><Login /></GuestRoute>} />
           <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
 
-          {/* Protected */}
+          {/* Protected (redirect to login if not authenticated) */}
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/settings"  element={<ProtectedRoute><Settings /></ProtectedRoute>} />
 
-          {/* Fallback */}
+          {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
