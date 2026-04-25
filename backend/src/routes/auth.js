@@ -1,7 +1,7 @@
-const express   = require('express');
-const router    = express.Router();
+const express = require('express');
+const router = express.Router();
 const rateLimit = require('express-rate-limit');
-const User      = require('../models/User');
+const User = require('../models/User');
 const { protect } = require('../middleware/auth');
 const {
   signAccess, signRefresh, verifyRefresh,
@@ -41,12 +41,12 @@ router.post('/register', authLimiter, async (req, res, next) => {
 
     const user = await User.create({ name: name.trim(), email, password });
 
-    const accessToken  = signAccess({ id: user._id, email: user.email, name: user.name, plan: user.plan });
+    const accessToken = signAccess({ id: user._id, email: user.email, name: user.name, plan: user.plan });
     const refreshToken = signRefresh({ id: user._id });
 
     // Store hashed refresh token
     user.refreshTokens = [hashToken(refreshToken)];
-    user.lastLoginAt   = new Date();
+    user.lastLoginAt = new Date();
     await user.save({ validateBeforeSave: false });
 
     setAccessCookie(res, accessToken);
@@ -56,6 +56,7 @@ router.post('/register', authLimiter, async (req, res, next) => {
     return res.status(201).json({
       message: 'Account created successfully.',
       user: { id: user._id, name: user.name, email: user.email, plan: user.plan },
+      accessToken,
     });
   } catch (err) { next(err); }
 });
@@ -71,13 +72,13 @@ router.post('/login', authLimiter, async (req, res, next) => {
     if (!user || !(await user.comparePassword(password)))
       return res.status(401).json({ error: 'Invalid email or password.' });
 
-    const accessToken  = signAccess({ id: user._id, email: user.email, name: user.name, plan: user.plan });
+    const accessToken = signAccess({ id: user._id, email: user.email, name: user.name, plan: user.plan });
     const refreshToken = signRefresh({ id: user._id });
 
     // Keep only last 5 refresh tokens (multi-device support)
     const hashed = hashToken(refreshToken);
     user.refreshTokens = [...(user.refreshTokens || []).slice(-4), hashed];
-    user.lastLoginAt   = new Date();
+    user.lastLoginAt = new Date();
     await user.save({ validateBeforeSave: false });
 
     setAccessCookie(res, accessToken);
@@ -87,6 +88,7 @@ router.post('/login', authLimiter, async (req, res, next) => {
     return res.json({
       message: 'Logged in successfully.',
       user: { id: user._id, name: user.name, email: user.email, plan: user.plan, hasGithubToken: user.hasGithubToken },
+      accessToken,
     });
   } catch (err) { next(err); }
 });
@@ -118,7 +120,7 @@ router.post('/refresh', tokenLimiter, async (req, res, next) => {
     }
 
     // Rotate refresh token
-    const newAccessToken  = signAccess({ id: user._id, email: user.email, name: user.name, plan: user.plan });
+    const newAccessToken = signAccess({ id: user._id, email: user.email, name: user.name, plan: user.plan });
     const newRefreshToken = signRefresh({ id: user._id });
 
     user.refreshTokens = user.refreshTokens.filter(t => t !== hashed);
@@ -154,15 +156,15 @@ router.get('/me', protect, async (req, res, next) => {
     const user = await User.findById(req.user.id).select('+_githubToken');
     if (!user) return res.status(404).json({ error: 'User not found.' });
     return res.json({
-      id:             user._id,
-      name:           user.name,
-      email:          user.email,
-      plan:           user.plan,
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      plan: user.plan,
       githubUsername: user.githubUsername,
-      avatarUrl:      user.avatarUrl,
+      avatarUrl: user.avatarUrl,
       hasGithubToken: user.hasGithubToken,
-      repoLimit:      user.repoLimit,
-      createdAt:      user.createdAt,
+      repoLimit: user.repoLimit,
+      createdAt: user.createdAt,
     });
   } catch (err) { next(err); }
 });
@@ -180,7 +182,7 @@ router.patch('/github-token', protect, async (req, res, next) => {
       // Remove token
       user.setGithubToken(null);
       user.githubUsername = null;
-      user.avatarUrl      = null;
+      user.avatarUrl = null;
       await user.save({ validateBeforeSave: false });
       return res.json({ message: 'GitHub token removed.' });
     }
@@ -203,14 +205,14 @@ router.patch('/github-token', protect, async (req, res, next) => {
 
     user.setGithubToken(token);
     user.githubUsername = githubUser.login;
-    user.avatarUrl      = githubUser.avatar_url;
+    user.avatarUrl = githubUser.avatar_url;
     await user.save({ validateBeforeSave: false });
 
     logger.info(`[auth] GitHub token saved for user ${user.email} (${githubUser.login})`);
     return res.json({
-      message:        'GitHub token saved successfully.',
+      message: 'GitHub token saved successfully.',
       githubUsername: githubUser.login,
-      avatarUrl:      githubUser.avatar_url,
+      avatarUrl: githubUser.avatar_url,
     });
   } catch (err) { next(err); }
 });
@@ -221,9 +223,9 @@ router.get('/github-token/status', protect, async (req, res, next) => {
     const user = await User.findById(req.user.id).select('+_githubToken');
     if (!user) return res.status(404).json({ error: 'User not found.' });
     return res.json({
-      hasToken:       user.hasGithubToken,
+      hasToken: user.hasGithubToken,
       githubUsername: user.githubUsername,
-      avatarUrl:      user.avatarUrl,
+      avatarUrl: user.avatarUrl,
     });
   } catch (err) { next(err); }
 });

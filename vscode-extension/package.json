@@ -1,16 +1,111 @@
 {
-  "name": "vscode-extension",
+  "name": "repoinsight-ai",
+  "displayName": "RepoInsight AI",
+  "description": "AI-powered codebase intelligence — ask questions, trace flows, analyze impact, right inside VS Code",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "publisher": "repoinsight",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["AI", "Other", "Programming Languages"],
+  "keywords": ["ai", "codebase", "chat", "code-intelligence", "refactoring"],
+  "icon": "resources/icon.png",
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "repoinsight.openPanel",    "title": "RepoInsight: Open Chat Panel" },
+      { "command": "repoinsight.indexRepo",    "title": "RepoInsight: Index Current Workspace" },
+      { "command": "repoinsight.explainFile",  "title": "RepoInsight: Explain This File" },
+      { "command": "repoinsight.explainSelection", "title": "RepoInsight: Explain Selected Code" },
+      { "command": "repoinsight.analyzeImpact","title": "RepoInsight: Analyze Change Impact" },
+      { "command": "repoinsight.traceFlow",    "title": "RepoInsight: Trace Execution Flow" },
+      { "command": "repoinsight.login",        "title": "RepoInsight: Login" },
+      { "command": "repoinsight.logout",       "title": "RepoInsight: Logout" }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "repoinsight.explainSelection",
+          "when": "editorHasSelection",
+          "group": "repoinsight@1"
+        },
+        {
+          "command": "repoinsight.explainFile",
+          "group": "repoinsight@2"
+        },
+        {
+          "command": "repoinsight.analyzeImpact",
+          "group": "repoinsight@3"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "repoinsight.explainFile",
+          "group": "repoinsight@1"
+        },
+        {
+          "command": "repoinsight.analyzeImpact",
+          "group": "repoinsight@2"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "repoinsight",
+          "title": "RepoInsight AI",
+          "icon": "resources/icon-sidebar.svg"
+        }
+      ]
+    },
+    "views": {
+      "repoinsight": [
+        { "id": "repoinsight.repoView",   "name": "Repositories",  "type": "tree" },
+        { "id": "repoinsight.chatView",   "name": "Chat",          "type": "webview" }
+      ]
+    },
+    "configuration": {
+      "title": "RepoInsight AI",
+      "properties": {
+        "repoinsight.apiBaseUrl": {
+          "type": "string",
+          "default": "http://localhost:4000",
+          "description": "RepoInsight backend API base URL"
+        },
+        "repoinsight.autoIndex": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically index workspace when opening a folder"
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "repoinsight.openPanel",
+        "key": "ctrl+shift+r",
+        "mac": "cmd+shift+r"
+      },
+      {
+        "command": "repoinsight.explainSelection",
+        "key": "ctrl+shift+e",
+        "mac": "cmd+shift+e",
+        "when": "editorHasSelection"
+      }
+    ]
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package"
+  },
   "dependencies": {
-    "vscode": "^1.1.37"
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0",
+    "@vscode/vsce": "^2.22.0"
   }
 }
