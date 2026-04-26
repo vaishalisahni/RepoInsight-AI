@@ -80,15 +80,14 @@ export default function MessageBubble({ message }) {
 
           {/* Sources */}
           {message.sources?.length > 0 && (
-            <div className="mt-3 pt-3" style={{ borderTop: '1px solid rgba(148,163,184,0.08)' }}>
+            <div className="mt-3 pt-3 border-t border-[var(--border)]">
               <p className="text-[10px] text-slate-600 uppercase tracking-wider font-semibold mb-1.5">Sources</p>
               <div className="flex flex-wrap gap-1.5">
                 {message.sources.slice(0, 5).map((s, i) => (
                   <button
                     key={i}
                     onClick={() => setCodeViewer && setCodeViewer({ filePath: s.filePath, startLine: s.startLine, endLine: s.endLine, snippet: s.snippet })}
-                    className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-mono transition-colors hover:opacity-80"
-                    style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.15)', color: '#93c5fd' }}
+                    className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md font-mono transition-colors hover:opacity-80 bg-[var(--accent-glow)] border border-[var(--accent-border)] text-[var(--accent-bright)]"
                   >
                     <FileCode className="w-2.5 h-2.5" />
                     {s.filePath?.split('/').slice(-2).join('/')}{s.startLine ? `:${s.startLine}` : ''}
