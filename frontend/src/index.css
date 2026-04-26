@@ -342,9 +342,10 @@ input:focus, textarea:focus, select:focus {
   }
 }
 
-/* ── Light theme overrides for inline styles ──────────────────────────────
-   These handle components that use inline Tailwind-like color classes
-   which reference hardcoded dark colors                                     */
+/* ═══════════════════════════════════════════════════════════════════════════
+   LIGHT MODE — Comprehensive overrides for hardcoded dark inline styles
+   Only targeting [data-theme="light"] — dark mode is completely untouched
+   ═══════════════════════════════════════════════════════════════════════════ */
 
 [data-theme="light"] body,
 [data-theme="light"] #root {
@@ -352,41 +353,350 @@ input:focus, textarea:focus, select:focus {
   color: #0f172a;
 }
 
-/* Navbar */
+/* ── Navbar ── */
 [data-theme="light"] header[class*="sticky"] {
   background: rgba(248, 250, 252, 0.95) !important;
   border-bottom-color: rgba(15, 23, 42, 0.1) !important;
 }
 
-/* Sidebar */
+/* ── Sidebar ── */
 [data-theme="light"] aside {
   background: rgba(241, 245, 249, 0.98) !important;
   border-right-color: rgba(15, 23, 42, 0.1) !important;
 }
 
-/* Cards and panels */
+/* ── card-glass ── */
 [data-theme="light"] .card-glass {
   background: rgba(255, 255, 255, 0.9) !important;
   border-color: rgba(15, 23, 42, 0.1) !important;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.04);
 }
 
-/* Chat bubbles */
-[data-theme="light"] .chat-assistant-bubble {
-  background: rgba(255, 255, 255, 0.95) !important;
-  border-color: rgba(15, 23, 42, 0.08) !important;
-}
-
-/* Code blocks in light mode */
+/* ── Code blocks ── */
 [data-theme="light"] .prose-code pre,
 [data-theme="light"] pre {
   background: #f0f4f8 !important;
 }
 
-/* Scrollbar in light mode */
+/* ── Scrollbar ── */
 [data-theme="light"] ::-webkit-scrollbar-thumb {
   background: rgba(15, 23, 42, 0.15);
 }
 [data-theme="light"] ::-webkit-scrollbar-thumb:hover {
   background: rgba(15, 23, 42, 0.25);
 }
+
+/* ── HOME PAGE ─────────────────────────────────────────────────────────────
+   Hero heading — hardcoded color: #f1f5f9 is invisible on white bg
+   ── */
+[data-theme="light"] .mesh-bg h1 {
+  color: #0f172a !important;
+}
+/* The gradient "in minutes" span uses WebkitTextFillColor so it's fine,
+   but we need the parent h1 dark */
+
+/* Hero sub-description */
+[data-theme="light"] .mesh-bg > div > div > p.text-slate-400 {
+  color: #475569 !important;
+}
+
+/* Badge "AI-Powered Codebase Intelligence" */
+[data-theme="light"] .mesh-bg span[style*="color: #60a5fa"] {
+  /* keep the blue, it works on light */
+}
+
+/* ── Ingest card (dark box on home) ── */
+/* The outer ingest card: background rgba(12, 16, 32, 0.9) */
+[data-theme="light"] [style*="background: rgba(12, 16, 32, 0.9)"],
+[data-theme="light"] [style*="background: rgba(12,16,32,0.9)"] {
+  background: rgba(255, 255, 255, 0.97) !important;
+  border-color: rgba(15, 23, 42, 0.12) !important;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.07) !important;
+}
+
+/* Mode tab strip background */
+[data-theme="light"] [style*="background: rgba(16,23,41,0.6)"],
+[data-theme="light"] [style*="background: rgba(16, 23, 41, 0.6)"] {
+  background: rgba(241, 245, 249, 0.9) !important;
+}
+
+/* "GITHUB REPOSITORY URL" label color */
+[data-theme="light"] [style*="color: #475569"] {
+  color: #64748b !important;
+}
+
+/* Input row inside ingest card */
+[data-theme="light"] [style*="background: rgba(16,23,41,0.8)"],
+[data-theme="light"] [style*="background: rgba(16, 23, 41, 0.8)"] {
+  background: #f8fafc !important;
+  border-color: rgba(15, 23, 42, 0.15) !important;
+}
+
+/* "Try:" label  */
+[data-theme="light"] [style*="color: #334155"] {
+  color: #64748b !important;
+}
+
+/* Demo repo quick-pick buttons */
+[data-theme="light"] [style*="background: rgba(59,130,246,0.06)"],
+[data-theme="light"] [style*="background: rgba(59, 130, 246, 0.06)"] {
+  background: rgba(37, 99, 235, 0.07) !important;
+  border-color: rgba(37, 99, 235, 0.2) !important;
+}
+
+/* ── Repo cards ── */
+[data-theme="light"] [style*="background: rgba(12, 16, 32, 0.7)"],
+[data-theme="light"] [style*="background: rgba(12,16,32,0.7)"] {
+  background: rgba(255, 255, 255, 0.97) !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.06) !important;
+}
+
+/* Repo card avatar chip */
+[data-theme="light"] [style*="background: rgba(59,130,246,0.12)"] {
+  background: rgba(37, 99, 235, 0.1) !important;
+  border-color: rgba(37, 99, 235, 0.18) !important;
+}
+
+/* Repo card name: text-slate-200 is almost white — make it dark */
+[data-theme="light"] p.text-slate-200,
+[data-theme="light"] span.text-slate-200 {
+  color: #0f172a !important;
+}
+
+/* ── Feature cards ── */
+[data-theme="light"] [style*="background: rgba(12,16,32,0.5)"],
+[data-theme="light"] [style*="background: rgba(12, 16, 32, 0.5)"] {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05) !important;
+}
+
+/* "WHAT YOU CAN DO" / empty state faint text */
+[data-theme="light"] [style*="color: #1e2d45"] {
+  color: #94a3b8 !important;
+}
+
+/* ── ZIP upload drop zone ── */
+[data-theme="light"] [style*="border: 2px dashed rgba(59,130,246"] {
+  background: rgba(37, 99, 235, 0.03) !important;
+}
+[data-theme="light"] [style*="border: 2px dashed rgba(16,185,129"] {
+  background: rgba(5, 150, 105, 0.03) !important;
+}
+
+/* ── Section headings on home ── */
+[data-theme="light"] h2[style*="color: #334155"] {
+  color: #475569 !important;
+}
+
+/* ── SETTINGS PAGE ─────────────────────────────────────────────────────────
+   Section cards have background rgba(12,16,32,0.8) — need white
+   ── */
+[data-theme="light"] section[style*="background: rgba(12,16,32"],
+[data-theme="light"] section[style*="background: rgba(12, 16, 32"] {
+  background: rgba(255, 255, 255, 0.97) !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.06) !important;
+}
+
+/* Settings section header bar */
+[data-theme="light"] section > div:first-child[style*="borderBottom"] {
+  border-bottom-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Section title */
+[data-theme="light"] section h2.text-slate-100 {
+  color: #0f172a !important;
+}
+
+/* Section subtitle */
+[data-theme="light"] section p.text-slate-500 {
+  color: #64748b !important;
+}
+
+/* Plan card inner dark box (rgba(16,23,41,0.5)) */
+[data-theme="light"] section [style*="background: rgba(16,23,41,0.5)"],
+[data-theme="light"] section [style*="background: rgba(16, 23, 41, 0.5)"] {
+  background: rgba(241, 245, 249, 0.9) !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+/* Plan name text */
+[data-theme="light"] section p.text-slate-100 {
+  color: #0f172a !important;
+}
+
+/* GitHub connected banner */
+[data-theme="light"] section [style*="background: rgba(16,185,129,0.06)"] {
+  background: rgba(5, 150, 105, 0.06) !important;
+  border-color: rgba(5, 150, 105, 0.2) !important;
+}
+[data-theme="light"] section p.text-emerald-300 {
+  color: #059669 !important;
+}
+
+/* Password sub-card */
+[data-theme="light"] section [style*="background: rgba(16,23,41,0.5)"] {
+  background: rgba(241, 245, 249, 0.9) !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+/* Sign out button border */
+[data-theme="light"] section button[style*="border: '1px solid rgba(148,163,184"] {
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+/* ── DASHBOARD ─────────────────────────────────────────────────────────────
+   Tech-stack bar, chat header, panels, etc.
+   ── */
+
+/* Tech-stack header bar */
+[data-theme="light"] [style*="background: rgba(10,14,26,0.8)"],
+[data-theme="light"] [style*="background: rgba(10, 14, 26, 0.8)"] {
+  background: rgba(248, 250, 252, 0.97) !important;
+  border-bottom-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+/* Right summary panel */
+[data-theme="light"] [style*="background: rgba(8,11,20,0.6)"],
+[data-theme="light"] [style*="background: rgba(8, 11, 20, 0.6)"] {
+  background: rgba(248, 250, 252, 0.97) !important;
+  border-left-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+/* Chat header bar */
+[data-theme="light"] [style*="background: rgba(8,11,20,0.8)"],
+[data-theme="light"] [style*="background: rgba(8, 11, 20, 0.8)"] {
+  background: rgba(248, 250, 252, 0.97) !important;
+  border-bottom-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+/* AI chat message bubble */
+[data-theme="light"] [style*="background: rgba(16,23,41,0.8)"],
+[data-theme="light"] [style*="background: rgba(16, 23, 41, 0.8)"] {
+  background: rgba(255, 255, 255, 0.97) !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+/* Chat input footer */
+[data-theme="light"] [style*="background: rgba(8,11,20,0.95)"],
+[data-theme="light"] [style*="background: rgba(8, 11, 20, 0.95)"] {
+  background: rgba(248, 250, 252, 0.99) !important;
+  border-top-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+/* Chat textarea box */
+[data-theme="light"] [style*="background: rgba(16,23,41,0.9)"],
+[data-theme="light"] [style*="background: rgba(16, 23, 41, 0.9)"] {
+  background: rgba(255, 255, 255, 0.97) !important;
+  border-color: rgba(15, 23, 42, 0.15) !important;
+}
+
+/* Starter question buttons */
+[data-theme="light"] [style*="background: rgba(16,23,41,0.7)"],
+[data-theme="light"] [style*="background: rgba(16, 23, 41, 0.7)"] {
+  background: rgba(255, 255, 255, 0.85) !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+/* Trace / Impact panel header */
+[data-theme="light"] [style*="background: rgba(13,11,30,0.6)"],
+[data-theme="light"] [style*="background: rgba(13, 11, 30, 0.6)"] {
+  background: rgba(241, 245, 249, 0.97) !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+/* White text in panels (panel titles, headings) */
+[data-theme="light"] p.text-white {
+  color: #0f172a !important;
+}
+
+/* Impact / Trace result cards */
+[data-theme="light"] [style*="background: rgba(13,11,30,0.95)"],
+[data-theme="light"] [style*="background: rgba(13, 11, 30, 0.95)"] {
+  background: rgba(255, 255, 255, 0.97) !important;
+  border-color: rgba(15, 23, 42, 0.12) !important;
+}
+
+/* Session history panel */
+[data-theme="light"] [style*="background: rgba(6,8,16,0.95)"],
+[data-theme="light"] [style*="background: rgba(6, 8, 16, 0.95)"] {
+  background: rgba(248, 250, 252, 0.99) !important;
+  border-right-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+/* ── Code Viewer Modal ── */
+[data-theme="light"] [style*="background: #080d1a"] {
+  background: #f8fafc !important;
+}
+[data-theme="light"] [style*="background: rgba(10,14,26,0.9)"],
+[data-theme="light"] [style*="background: rgba(10, 14, 26, 0.9)"] {
+  background: rgba(248, 250, 252, 0.99) !important;
+  border-bottom-color: rgba(15, 23, 42, 0.08) !important;
+}
+[data-theme="light"] [style*="background: rgba(6,8,16,0.8)"],
+[data-theme="light"] [style*="background: rgba(6, 8, 16, 0.8)"] {
+  background: rgba(248, 250, 252, 0.97) !important;
+  border-top-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+/* ── Graph vis-network canvas background ── */
+[data-theme="light"] [style*="background: #07060f"] {
+  background: #f1f5f9 !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+/* ── Generic hardcoded dark color overrides ── */
+
+/* Very light text (nearly white) → near-black */
+[data-theme="light"] [style*="color: #f1f5f9"],
+[data-theme="light"] [style*="color: #e8e6f0"],
+[data-theme="light"] [style*="color: #e2e8f0"],
+[data-theme="light"] [style*="color: #cbd5e1"] {
+  color: #0f172a !important;
+}
+
+/* Mid-range muted tones → readable slate */
+[data-theme="light"] [style*="color: #b8b5cc"],
+[data-theme="light"] [style*="color: #94a3b8"],
+[data-theme="light"] [style*="color: #8b88a6"] {
+  color: #475569 !important;
+}
+
+/* Very dark / barely-visible tones → medium slate */
+[data-theme="light"] [style*="color: #4a476a"],
+[data-theme="light"] [style*="color: #2e2a55"],
+[data-theme="light"] [style*="color: #7c7ff5"] {
+  color: #64748b !important;
+}
+
+/* Dark panel backgrounds → white */
+[data-theme="light"] [style*="background: rgba(19,17,40"],
+[data-theme="light"] [style*="background: rgba(19, 17, 40"] {
+  background: rgba(255, 255, 255, 0.93) !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+[data-theme="light"] [style*="background: rgba(13,11,30"],
+[data-theme="light"] [style*="background: rgba(13, 11, 30"] {
+  background: rgba(255, 255, 255, 0.93) !important;
+  border-color: rgba(15, 23, 42, 0.1) !important;
+}
+
+/* Fully opaque dark hex backgrounds */
+[data-theme="light"] [style*="background: #0a0918"],
+[data-theme="light"] [style*="background: #0a0f1e"],
+[data-theme="light"] [style*="background: #080d1a"],
+[data-theme="light"] [style*="background: #080b14"],
+[data-theme="light"] [style*="background: #07060f"],
+[data-theme="light"] [style*="background: #0c1020"],
+[data-theme="light"] [style*="background: #101729"] {
+  background: #f1f5f9 !important;
+}
+
+/* ── Status text colours stay consistent in light ── */
+[data-theme="light"] .text-amber-400 { color: #d97706 !important; }
+[data-theme="light"] .text-red-400   { color: #dc2626 !important; }
+[data-theme="light"] .text-emerald-400 { color: #059669 !important; }
+[data-theme="light"] .text-blue-400  { color: #2563eb !important; }
