@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Send, RotateCcw, Sparkles, MessageSquare, History,
   Download, Copy, Check, ChevronLeft, Clock, Trash2, X,
-  AlertTriangle, Zap
+  AlertTriangle, Zap, Pencil, CheckCheck, AlertCircle
 } from 'lucide-react';
 import { getSessions } from '../../api/client';
 import api from '../../api/client';
@@ -10,6 +10,10 @@ import useAppStore from '../../store/appStore';
 import MessageBubble from './MessageBubble';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+
+// Token budget config (approximate — adjust to match your backend limits)
+const MAX_TOKENS = 4096;
+const WARN_THRESHOLD = 0.75; // warn at 75% used
 
 const DEFAULT_STARTERS = [
   'Where is authentication handled?',
@@ -45,8 +49,7 @@ function buildStarters(repo) {
 }
 
 function formatSessionPreview(session) {
-  const first = session.messages?.find(m => m.role === 'user');
-  return first?.content?.slice(0, 50) || 'Empty session';
+  return session.title || session.messages?.find(m => m.role === 'user')?.content?.slice(0, 50) || 'Empty session';
 }
 
 function formatSessionDate(dateStr) {
@@ -133,6 +136,97 @@ function ConfirmModal({ isOpen, title, message, confirmLabel = 'Delete', onConfi
   );
 }
 
+// ── Token Budget Bar ─────────────────────────────────────────────────────────
+function TokenBudgetBar({ tokensUsed, maxTokens }) {
+  if (!tokensUsed) return null;
+  const pct = Math.min(tokensUsed / maxTokens, 1);
+  const isWarn = pct >= WARN_THRESHOLD;
+  const isCrit = pct >= 0.9;
+  const color = isCrit ? '#ef4444' : isWarn ? '#f59e0b' : '#3b82f6';
+  const remaining = maxTokens - tokensUsed;
+
+  return (
+    <div className="flex items-center gap-2 px-3 py-1" style={{ borderTop: '1px solid var(--border)' }}>
+      <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: 'var(--bg-300)' }}>
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{ width: `${pct * 100}%`, background: color }}
+        />
+      </div>
+      <span className="text-[10px] font-mono shrink-0 tabular-nums" style={{ color: isCrit ? '#ef4444' : 'var(--text-faint)' }}>
+        {isCrit ? (
+          <span className="flex items-center gap-1">
+            <AlertCircle className="w-2.5 h-2.5" />
+            {remaining.toLocaleString()} left
+          </span>
+        ) : (
+          `~${remaining.toLocaleString()} tokens left`
+        )}
+      </span>
+    </div>
+  );
+}
+
+// ── Session Title Editor ──────────────────────────────────────────────────────
+function SessionTitleEditor({ sessionId, currentTitle, onSaved }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(currentTitle || '');
+  const inputRef = useRef(null);
+
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+  useEffect(() => { setVal(currentTitle || ''); }, [currentTitle]);
+
+  const save = async () => {
+    const trimmed = val.trim();
+    if (!trimmed || trimmed === currentTitle) { setEditing(false); return; }
+    try {
+      await api.patch(`/query/sessions/${sessionId}/title`, { title: trimmed });
+      onSaved(trimmed);
+    } catch (_) {}
+    setEditing(false);
+  };
+
+  if (!sessionId) return null;
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1 flex-1 min-w-0">
+        <input
+          ref={inputRef}
+          value={val}
+          onChange={e => setVal(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false); }}
+          onBlur={save}
+          className="flex-1 text-[13px] font-semibold px-2 py-0.5 rounded-lg outline-none min-w-0"
+          style={{
+            background: 'var(--bg-200)',
+            border: '1px solid var(--accent-border)',
+            color: 'var(--text-primary)',
+            fontFamily: "'Space Grotesk', sans-serif",
+          }}
+          maxLength={80}
+        />
+        <button onClick={save} className="p-1 rounded" style={{ color: 'var(--accent)' }}>
+          <CheckCheck className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setEditing(true)}
+      title="Rename session"
+      className="flex items-center gap-1.5 group min-w-0 flex-1"
+    >
+      <span className="text-[13px] font-semibold truncate" style={{ fontFamily: "'Space Grotesk', sans-serif", color: 'var(--text-primary)' }}>
+        {val || 'Chat'}
+      </span>
+      <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" style={{ color: 'var(--text-muted)' }} />
+    </button>
+  );
+}
+
 export default function ChatWindow() {
   const [input, setInput]             = useState('');
   const [showHistory, setShowHistory] = useState(false);
@@ -141,10 +235,12 @@ export default function ChatWindow() {
   const [copied, setCopied]           = useState(false);
   const [streaming, setStreaming]     = useState(false);
   const [confirmModal, setConfirmModal] = useState({ open: false, type: null, sessionId: null });
+  const [tokensUsed, setTokensUsed]   = useState(0);
+  const [sessionTitle, setSessionTitle] = useState('');
 
   const bottomRef     = useRef(null);
   const textareaRef   = useRef(null);
-  const abortRef      = useRef(null); // for cancelling SSE streams
+  const abortRef      = useRef(null);
 
   const {
     messages, activeRepoId, activeRepo, sessionId, isLoading,
@@ -152,13 +248,16 @@ export default function ChatWindow() {
     pendingQuestion, clearPendingQuestion,
   } = useAppStore();
 
-  // ── Consume pendingQuestion set from file explorer ────────────────────────
+  // Estimate tokens from message content (rough: 4 chars ≈ 1 token)
+  useEffect(() => {
+    const totalChars = messages.reduce((acc, m) => acc + (m.content?.length || 0), 0);
+    setTokensUsed(Math.round(totalChars / 4));
+  }, [messages]);
+
   useEffect(() => {
     if (pendingQuestion) {
-      // Put it into the textarea so user can review before sending
       setInput(pendingQuestion);
       clearPendingQuestion();
-      // Auto-focus the textarea
       setTimeout(() => textareaRef.current?.focus(), 100);
     }
   }, [pendingQuestion, clearPendingQuestion]);
@@ -171,17 +270,25 @@ export default function ChatWindow() {
     if (showHistory && activeRepoId) fetchSessions();
   }, [showHistory, activeRepoId]);
 
+  // Sync session title when sessionId changes
+  useEffect(() => {
+    if (sessionId && sessions.length) {
+      const s = sessions.find(s => s._id === sessionId);
+      if (s) setSessionTitle(s.title || '');
+    }
+  }, [sessionId, sessions]);
+
   const fetchSessions = () => {
     setLoadingSessions(true);
     getSessions(activeRepoId)
-      .then(setSessions)
+      .then(data => { setSessions(data); })
       .catch(() => {})
       .finally(() => setLoadingSessions(false));
   };
 
   const starters = buildStarters(activeRepo);
 
-  // ── Streaming SSE send ────────────────────────────────────────────────────
+  // ── SSE Streaming ─────────────────────────────────────────────────────────
   const sendStream = useCallback(async (question) => {
     if (!question || !activeRepoId || isLoading) return;
 
@@ -192,17 +299,13 @@ export default function ChatWindow() {
     setLoading(true);
     setStreaming(true);
 
-    // We'll build the assistant message incrementally
     let assistantContent = '';
     let assistantSources = [];
     let newSessionId = sessionId;
 
-    // Add a placeholder message that we'll update token-by-token
-    const placeholderIdx = useAppStore.getState().messages.length;
     addMessage({ role: 'assistant', content: '', sources: [], _streaming: true });
 
     try {
-      // Get cookie for auth
       const response = await fetch(`${BASE_URL}/api/query/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -227,7 +330,7 @@ export default function ChatWindow() {
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
-        buffer = lines.pop(); // keep incomplete line
+        buffer = lines.pop();
 
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
@@ -236,16 +339,11 @@ export default function ChatWindow() {
 
             if (data.token) {
               assistantContent += data.token;
-              // Update the streaming message in the store
               useAppStore.setState(state => {
                 const msgs = [...state.messages];
-                const lastAssistantIdx = msgs.map(m => m.role).lastIndexOf('assistant');
-                if (lastAssistantIdx !== -1) {
-                  msgs[lastAssistantIdx] = {
-                    ...msgs[lastAssistantIdx],
-                    content: assistantContent,
-                    _streaming: true,
-                  };
+                const lastIdx = msgs.map(m => m.role).lastIndexOf('assistant');
+                if (lastIdx !== -1) {
+                  msgs[lastIdx] = { ...msgs[lastIdx], content: assistantContent, _streaming: true };
                 }
                 return { messages: msgs };
               });
@@ -254,12 +352,11 @@ export default function ChatWindow() {
             if (data.done) {
               assistantSources = data.sources || [];
               newSessionId = data.sessionId || newSessionId;
-              // Finalize the message
               useAppStore.setState(state => {
                 const msgs = [...state.messages];
-                const lastAssistantIdx = msgs.map(m => m.role).lastIndexOf('assistant');
-                if (lastAssistantIdx !== -1) {
-                  msgs[lastAssistantIdx] = {
+                const lastIdx = msgs.map(m => m.role).lastIndexOf('assistant');
+                if (lastIdx !== -1) {
+                  msgs[lastIdx] = {
                     role: 'assistant',
                     content: assistantContent,
                     sources: assistantSources,
@@ -270,24 +367,25 @@ export default function ChatWindow() {
               });
             }
 
-            if (data.error) {
-              throw new Error(data.error);
-            }
-          } catch (parseErr) {
-            // skip malformed SSE lines
-          }
+            if (data.error) throw new Error(data.error);
+          } catch (_) {}
         }
       }
 
-      if (newSessionId) setSessionId(newSessionId);
+      if (newSessionId) {
+        setSessionId(newSessionId);
+        // Refresh sessions list to pick up new/updated title
+        if (activeRepoId) {
+          getSessions(activeRepoId).then(setSessions).catch(() => {});
+        }
+      }
 
     } catch (err) {
-      // Replace streaming placeholder with error message
       useAppStore.setState(state => {
         const msgs = [...state.messages];
-        const lastAssistantIdx = msgs.map(m => m.role).lastIndexOf('assistant');
-        if (lastAssistantIdx !== -1 && msgs[lastAssistantIdx]._streaming) {
-          msgs[lastAssistantIdx] = {
+        const lastIdx = msgs.map(m => m.role).lastIndexOf('assistant');
+        if (lastIdx !== -1 && msgs[lastIdx]._streaming) {
+          msgs[lastIdx] = {
             role: 'assistant',
             content: `⚠️ **Error:** ${err.message}`,
             sources: [],
@@ -312,7 +410,6 @@ export default function ChatWindow() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   };
 
-  // ── Cancel streaming ──────────────────────────────────────────────────────
   const cancelStream = () => {
     if (abortRef.current) {
       try { abortRef.current.cancel(); } catch (_) {}
@@ -326,10 +423,8 @@ export default function ChatWindow() {
     try {
       await api.delete(`/query/sessions/${sid}`);
       setSessions(prev => prev.filter(s => s._id !== sid));
-      if (sessionId === sid) clearMessages();
-    } catch (err) {
-      console.error('Failed to delete session:', err);
-    }
+      if (sessionId === sid) { clearMessages(); setSessionTitle(''); }
+    } catch (_) {}
   };
 
   const clearAllSessions = async () => {
@@ -337,9 +432,8 @@ export default function ChatWindow() {
       await api.delete(`/query/sessions/repo/${activeRepoId}`);
       setSessions([]);
       clearMessages();
-    } catch (err) {
-      console.error('Failed to clear all sessions:', err);
-    }
+      setSessionTitle('');
+    } catch (_) {}
   };
 
   const handleConfirm = async () => {
@@ -383,6 +477,7 @@ export default function ChatWindow() {
     clearMessages();
     session.messages.forEach(m => addMessage({ role: m.role, content: m.content, sources: m.sources }));
     setSessionId(session._id);
+    setSessionTitle(session.title || '');
     setShowHistory(false);
   };
 
@@ -430,8 +525,6 @@ export default function ChatWindow() {
                   onClick={() => setShowHistory(false)}
                   className="p-1.5 rounded-lg transition-colors"
                   style={{ color: 'var(--text-muted)' }}
-                  onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
-                  onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
@@ -494,7 +587,7 @@ export default function ChatWindow() {
             className="flex items-center justify-between px-3 md:px-5 py-2.5 shrink-0"
             style={{ borderBottom: '1px solid var(--border)', background: 'var(--navbar-bg)', backdropFilter: 'blur(10px)', minHeight: '48px' }}
           >
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
               <button
                 onClick={() => setShowHistory(v => !v)}
                 title={showHistory ? 'Hide history' : 'Chat history'}
@@ -504,15 +597,29 @@ export default function ChatWindow() {
                 <History className="w-3.5 h-3.5" />
               </button>
               <MessageSquare className="w-4 h-4 text-blue-400 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-[13px] font-semibold truncate" style={{ fontFamily: "'Space Grotesk', sans-serif", color: 'var(--text-primary)' }}>
-                  {activeRepo?.name?.includes('/') ? activeRepo.name.split('/').pop() : activeRepo?.name || 'Chat'}
-                </p>
+
+              {/* Editable session title */}
+              <div className="min-w-0 flex-1">
+                {sessionId ? (
+                  <SessionTitleEditor
+                    sessionId={sessionId}
+                    currentTitle={sessionTitle}
+                    onSaved={(t) => {
+                      setSessionTitle(t);
+                      setSessions(prev => prev.map(s => s._id === sessionId ? { ...s, title: t } : s));
+                    }}
+                  />
+                ) : (
+                  <p className="text-[13px] font-semibold truncate" style={{ fontFamily: "'Space Grotesk', sans-serif", color: 'var(--text-primary)' }}>
+                    {activeRepo?.name?.includes('/') ? activeRepo.name.split('/').pop() : activeRepo?.name || 'Chat'}
+                  </p>
+                )}
               </div>
+
               {/* Streaming indicator */}
               {streaming && (
                 <span
-                  className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full"
+                  className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full shrink-0"
                   style={{ background: 'rgba(59,130,246,0.1)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.2)' }}
                 >
                   <Zap className="w-2.5 h-2.5" />
@@ -548,6 +655,9 @@ export default function ChatWindow() {
               </div>
             )}
           </div>
+
+          {/* Token budget bar */}
+          <TokenBudgetBar tokensUsed={tokensUsed} maxTokens={MAX_TOKENS} />
 
           {/* Messages */}
           <div
@@ -632,7 +742,6 @@ export default function ChatWindow() {
                   e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px';
                 }}
               />
-              {/* Cancel stream button */}
               {streaming && (
                 <button
                   onClick={cancelStream}

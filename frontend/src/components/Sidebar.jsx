@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   MessageSquare, GitBranch, Zap, Home, Plus,
@@ -10,7 +10,7 @@ import {
 import useAppStore  from '../store/appStore';
 import useAuthStore from '../store/authStore';
 import useThemeStore from '../store/themeStore';
-import { getRepos, getRepoStatus } from '../api/client';
+import { getGraph } from '../api/client';
 
 const NAV_TABS = [
   { id: 'chat',     icon: MessageSquare, label: 'Chat',        desc: 'Ask questions'   },
@@ -51,8 +51,6 @@ function sortedEntries(obj) {
     return aKey.localeCompare(bKey);
   });
 }
-
-// ─── FileTree component ───────────────────────────────────────────────────────
 
 function FileTree({ node, depth = 0, onFileClick, searchQuery, isLight }) {
   const entries = sortedEntries(node);
@@ -176,25 +174,30 @@ function getExtColor(ext) {
   return map[ext] || '#6b7280';
 }
 
-// ─── FileExplorerPanel ────────────────────────────────────────────────────────
+// ─── FileExplorerPanel — BUG FIX #9: Memoized, no re-fetch if data exists ────
 
 function FileExplorerPanel({ activeRepo, isLight, onFileClick }) {
   const [searchQuery, setSearchQuery] = useState('');
+  // BUG FIX #9: track if we've already resolved the file list for this repo
   const [fileList, setFileList]       = useState([]);
   const [loading, setLoading]         = useState(false);
+  const resolvedRepoId                = useRef(null);
 
   const borderColor = isLight ? 'rgba(15,23,42,0.1)' : 'rgba(148,163,184,0.08)';
   const { graphData } = useAppStore();
 
   useEffect(() => {
     if (!activeRepo) return;
+    // BUG FIX #9: Skip if we already resolved for this repo
+    if (resolvedRepoId.current === activeRepo._id && fileList.length > 0) return;
 
-    // Priority 1: use graph nodes already in store (set when Graph tab is visited)
+    // Priority 1: use graph nodes already in store
     if (graphData?.nodes?.length > 0) {
       const files = [...new Set(
         graphData.nodes.map(n => n.filePath || n.id).filter(Boolean)
       )].sort();
       setFileList(files);
+      resolvedRepoId.current = activeRepo._id;
       return;
     }
 
@@ -204,44 +207,32 @@ function FileExplorerPanel({ activeRepo, isLight, onFileClick }) {
         activeRepo.graph.nodes.map(n => n.filePath || n.id).filter(Boolean)
       )].sort();
       setFileList(files);
+      resolvedRepoId.current = activeRepo._id;
       return;
     }
 
-    // Priority 3: fetch full repo status which includes keyFiles
-    // and try to get graph data from the API
-    if (activeRepo._id) {
-      setLoading(true);
-      getRepoStatus(activeRepo._id)
-        .then(data => {
-          // Use keyFiles as fallback file list
-          const files = [];
-
-          // If graph is embedded in status response
-          if (data.graph?.nodes?.length > 0) {
-            const graphFiles = [...new Set(
-              data.graph.nodes.map(n => n.filePath || n.id).filter(Boolean)
-            )].sort();
-            setFileList(graphFiles);
-            return;
-          }
-
-          // Fallback to keyFiles
-          if (data.keyFiles?.length > 0) {
-            setFileList([...data.keyFiles].sort());
-            return;
-          }
-
-          setFileList([]);
-        })
-        .catch(() => {
-          // Final fallback: use keyFiles from the repo object
-          if (activeRepo.keyFiles?.length > 0) {
-            setFileList([...activeRepo.keyFiles].sort());
-          }
-        })
-        .finally(() => setLoading(false));
+    // Priority 3: use keyFiles directly (avoid extra API call)
+    if (activeRepo.keyFiles?.length > 0) {
+      setFileList([...activeRepo.keyFiles].sort());
+      resolvedRepoId.current = activeRepo._id;
+      return;
     }
-  }, [activeRepo?._id, graphData]);
+
+    setFileList([]);
+    resolvedRepoId.current = activeRepo._id;
+  }, [activeRepo?._id, graphData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset when switching repos
+  useEffect(() => {
+    if (activeRepo?._id !== resolvedRepoId.current) {
+      setFileList([]);
+      setSearchQuery('');
+      resolvedRepoId.current = null;
+    }
+  }, [activeRepo?._id]);
+
+  // Memoize the tree to avoid rebuilding on every render
+  const tree = useMemo(() => buildTree(fileList), [fileList]);
 
   if (loading) {
     return (
@@ -264,8 +255,6 @@ function FileExplorerPanel({ activeRepo, isLight, onFileClick }) {
       </div>
     );
   }
-
-  const tree = buildTree(fileList);
 
   return (
     <div className="flex flex-col h-full">
@@ -351,8 +340,9 @@ function Tooltip({ children, label, disabled }) {
 
 export default function Sidebar({ onClose, onFileSelect }) {
   const {
+    // BUG FIX #10: repos already loaded by parent — don't fetch here
     repos, activeRepoId, activeRepo, activeTab, sidebarOpen,
-    setRepos, setActiveRepo, setActiveTab, setGraphData, toggleSidebar,
+    setActiveRepo, setActiveTab, setGraphData, toggleSidebar,
   } = useAppStore();
   const { user, logout } = useAuthStore();
   const theme   = useThemeStore(s => s.theme);
@@ -361,9 +351,8 @@ export default function Sidebar({ onClose, onFileSelect }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  useEffect(() => {
-    getRepos().then(setRepos).catch(() => {});
-  }, []);
+  // BUG FIX #10: Removed `getRepos().then(setRepos)` — Home.jsx owns that call.
+  // Sidebar just reads from shared store.
 
   const readyRepos  = repos.filter(r => r.status === 'ready');
   const isDashboard = location.pathname === '/dashboard';
@@ -376,22 +365,20 @@ export default function Sidebar({ onClose, onFileSelect }) {
   const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
   const isOpen   = isMobile ? true : sidebarOpen;
 
-  // ── Theme colours ─────────────────────────────────────────────────────────
   const sidebarBg   = isLight ? 'rgba(241,245,249,0.98)' : 'rgba(8,11,20,0.97)';
   const borderColor = isLight ? 'rgba(15,23,42,0.1)'     : 'rgba(148,163,184,0.08)';
   const textMuted   = isLight ? '#64748b' : '#64748b';
   const textLabel   = isLight ? '#94a3b8' : '#475569';
   const emptyColor  = isLight ? '#cbd5e1' : '#1e2d45';
 
-  // ── File click ────────────────────────────────────────────────────────────
-  const handleFileClick = (filePath, fileName) => {
+  const handleFileClick = useCallback((filePath, fileName) => {
     if (onFileSelect) {
       onFileSelect(filePath);
     } else {
       setActiveTab('chat');
     }
     onClose?.();
-  };
+  }, [onFileSelect, setActiveTab, onClose]);
 
   const showFileExplorer = isDashboard && activeRepoId && activeTab === 'explorer' && isOpen;
 
@@ -406,7 +393,6 @@ export default function Sidebar({ onClose, onFileSelect }) {
         backdropFilter: 'blur(20px)',
       }}
     >
-      {/* Mobile close button */}
       {onClose && (
         <button
           onClick={onClose}
@@ -423,7 +409,7 @@ export default function Sidebar({ onClose, onFileSelect }) {
 
       <div className="flex flex-col flex-1 overflow-hidden">
 
-        {/* ── Top header ──────────────────────────────────────────────────── */}
+        {/* Top header */}
         {!onClose && (
           <div
             className="flex items-center shrink-0 px-4"
@@ -459,7 +445,7 @@ export default function Sidebar({ onClose, onFileSelect }) {
           </div>
         )}
 
-        {/* ── Home nav ──────────────────────────────────────────────────────── */}
+        {/* Home nav */}
         <div className="px-2 pt-2 pb-1 shrink-0">
           <Tooltip label="Home" disabled={isOpen}>
             <SidebarItem
@@ -473,7 +459,7 @@ export default function Sidebar({ onClose, onFileSelect }) {
           </Tooltip>
         </div>
 
-        {/* ── Tools ─────────────────────────────────────────────────────────── */}
+        {/* Tools */}
         {isDashboard && activeRepoId && (
           <div
             className="px-2 py-1 shrink-0"
@@ -499,7 +485,7 @@ export default function Sidebar({ onClose, onFileSelect }) {
           </div>
         )}
 
-        {/* ── File Explorer (inline) ──────────────────────────────────────── */}
+        {/* File Explorer (inline) */}
         {showFileExplorer ? (
           <div className="flex-1 overflow-hidden min-h-0">
             <FileExplorerPanel
@@ -509,7 +495,7 @@ export default function Sidebar({ onClose, onFileSelect }) {
             />
           </div>
         ) : (
-          /* ── Repos list ─────────────────────────────────────────────────── */
+          /* Repos list */
           <div className="flex-1 overflow-y-auto px-2 py-2">
             {isOpen && readyRepos.length > 0 && (
               <p className="text-[9px] font-bold uppercase tracking-widest px-2 mb-2 mt-1" style={{ color: textLabel }}>
@@ -604,7 +590,7 @@ export default function Sidebar({ onClose, onFileSelect }) {
           </div>
         )}
 
-        {/* ── Bottom actions ─────────────────────────────────────────────────── */}
+        {/* Bottom actions */}
         <div className="px-2 py-2 shrink-0 space-y-0.5" style={{ borderTop: `1px solid ${borderColor}` }}>
           <Tooltip label="Add repository" disabled={isOpen}>
             <SidebarItem
@@ -626,7 +612,6 @@ export default function Sidebar({ onClose, onFileSelect }) {
             />
           </Tooltip>
 
-          {/* User chip — expanded */}
           {isOpen && user && (
             <div
               className="flex items-center gap-2 px-2 py-2 rounded-xl mt-1"
@@ -675,7 +660,6 @@ export default function Sidebar({ onClose, onFileSelect }) {
             </div>
           )}
 
-          {/* Collapsed: logout icon */}
           {!isOpen && user && (
             <Tooltip label="Sign out" disabled={false}>
               <button
@@ -700,8 +684,6 @@ export default function Sidebar({ onClose, onFileSelect }) {
     </aside>
   );
 }
-
-// ─── SidebarItem ──────────────────────────────────────────────────────────────
 
 function SidebarItem({ icon: Icon, label, active, collapsed, onClick, isLight }) {
   const activeColor   = '#3b82f6';
