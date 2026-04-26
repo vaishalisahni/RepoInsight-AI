@@ -18,12 +18,13 @@ const useAppStore = create((set, get) => ({
   setActiveRepo: (repoId) => {
     const repo = get().repos.find(r => r._id === repoId) || null;
     set({
-      activeRepoId: repoId,
-      activeRepo:   repo,
-      messages:     [],
-      sessionId:    null,
-      graphData:    null,
-      selectedFile: null,
+      activeRepoId:    repoId,
+      activeRepo:      repo,
+      messages:        [],
+      sessionId:       null,
+      graphData:       null,
+      selectedFile:    null,
+      pendingQuestion: null,
     });
   },
 
@@ -37,10 +38,15 @@ const useAppStore = create((set, get) => ({
   sessionId:     null,
   isLoading:     false,
 
-  addMessage:    (msg) => set(s => ({ messages: [...s.messages, msg] })),
-  setSessionId:  (id)  => set({ sessionId: id }),
-  setLoading:    (v)   => set({ isLoading: v }),
-  clearMessages: ()    => set({ messages: [], sessionId: null }),
+  // pendingQuestion: set from outside (e.g. file explorer) to pre-fill chat input
+  pendingQuestion: null,
+
+  addMessage:          (msg) => set(s => ({ messages: [...s.messages, msg] })),
+  setSessionId:        (id)  => set({ sessionId: id }),
+  setLoading:          (v)   => set({ isLoading: v }),
+  clearMessages:       ()    => set({ messages: [], sessionId: null }),
+  setPendingQuestion:  (q)   => set({ pendingQuestion: q }),
+  clearPendingQuestion: ()   => set({ pendingQuestion: null }),
 
   // ── Graph ─────────────────────────────────────────────────────────────────
   graphData:    null,
@@ -54,12 +60,10 @@ const useAppStore = create((set, get) => ({
   toggleSidebar: () => set(s => ({ sidebarOpen: !s.sidebarOpen })),
 
   // ── Code Viewer Modal ─────────────────────────────────────────────────────
-  // { filePath, startLine, endLine, snippet }
   codeViewer:    null,
   setCodeViewer: (data) => set({ codeViewer: data }),
 
   // ── File Explorer ─────────────────────────────────────────────────────────
-  // Set when user clicks a file in the sidebar explorer
   selectedFile:    null,
   setSelectedFile: (path) => set({ selectedFile: path }),
 }));

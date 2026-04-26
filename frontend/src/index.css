@@ -700,3 +700,64 @@ input:focus, textarea:focus, select:focus {
 [data-theme="light"] .text-red-400   { color: #dc2626 !important; }
 [data-theme="light"] .text-emerald-400 { color: #059669 !important; }
 [data-theme="light"] .text-blue-400  { color: #2563eb !important; }
+
+/* ── ConfirmModal light mode ──────────────────────────────────────────────── */
+
+/* Modal overlay backdrop */
+[data-theme="light"] .fixed.inset-0[style*="rgba(0,0,0,0.6)"],
+[data-theme="light"] .fixed.inset-0[style*="rgba(0, 0, 0, 0.6)"] {
+  background: rgba(15, 23, 42, 0.45) !important;
+}
+
+/* Modal card */
+[data-theme="light"] [style*="background: rgba(10,14,26,0.98)"],
+[data-theme="light"] [style*="background: rgba(10, 14, 26, 0.98)"] {
+  background: rgba(255, 255, 255, 0.99) !important;
+  border-color: rgba(15, 23, 42, 0.12) !important;
+  box-shadow: 0 40px 80px rgba(0, 0, 0, 0.12) !important;
+}
+
+/* Modal title text */
+[data-theme="light"] .fixed.inset-0 p.text-slate-100 {
+  color: #0f172a !important;
+}
+
+/* Modal description / body text */
+[data-theme="light"] .fixed.inset-0 p.text-slate-400 {
+  color: #475569 !important;
+}
+
+/* Modal footer divider */
+[data-theme="light"] .fixed.inset-0 [style*="borderTop: '1px solid rgba(148,163,184,0.08)'"],
+[data-theme="light"] .fixed.inset-0 [style*="border-top: 1px solid rgba(148,163,184,0.08)"] {
+  border-top-color: rgba(15, 23, 42, 0.08) !important;
+}
+
+/* Cancel button */
+[data-theme="light"] .fixed.inset-0 button[style*="border: '1px solid rgba(148,163,184,0.12)'"],
+[data-theme="light"] .fixed.inset-0 button[style*="border: 1px solid rgba(148,163,184,0.12)"] {
+  border-color: rgba(15, 23, 42, 0.15) !important;
+  color: #64748b !important;
+}
+
+[data-theme="light"] .fixed.inset-0 button[style*="border: '1px solid rgba(148,163,184,0.12)'"]:hover,
+[data-theme="light"] .fixed.inset-0 button[style*="border: 1px solid rgba(148,163,184,0.12)"]:hover {
+  background: rgba(15, 23, 42, 0.05) !important;
+  color: #0f172a !important;
+}
+
+/* ── ChatWindow session history panel — light mode ─────────────────────────── */
+
+/* Session delete/clear modal uses CSS vars so inherits properly from above */
+
+/* History panel session hover */
+[data-theme="light"] [style*="background: var(--sidebar-bg)"],
+[data-theme="light"] aside [style*="background: var(--sidebar-bg)"] {
+  background: rgba(241, 245, 249, 0.98) !important;
+}
+
+/* Per-session delete X button in history list */
+[data-theme="light"] .group:hover [style*="background: var(--bg-50)"] {
+  background: rgba(241, 245, 249, 0.9) !important;
+  border: 1px solid rgba(15, 23, 42, 0.1) !important;
+}
