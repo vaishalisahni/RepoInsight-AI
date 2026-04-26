@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { X, FileCode, Copy, Check, ExternalLink } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { vscDarkPlus, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { useState } from 'react';
 import useAppStore from '../../store/appStore';
 
@@ -36,10 +36,11 @@ function detectLanguage(filePath) {
 }
 
 export default function CodeViewerModal() {
-  const codeViewer   = useAppStore(s => s.codeViewer);
+  const codeViewer = useAppStore(s => s.codeViewer);
   const setCodeViewer = useAppStore(s => s.setCodeViewer);
   const [copied, setCopied] = useState(false);
   const overlayRef = useRef(null);
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
 
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') setCodeViewer(null); };
@@ -65,40 +66,53 @@ export default function CodeViewerModal() {
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)' }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md"
+      style={{ background: 'var(--modal-overlay)' }}
       onClick={e => { if (e.target === overlayRef.current) setCodeViewer(null); }}
     >
       <div
         className="w-full max-w-3xl rounded-2xl overflow-hidden flex flex-col"
         style={{
-          background: '#080d1a',
-          border: '1px solid rgba(59,130,246,0.2)',
+          background: 'var(--card-bg-solid)',
+          border: '1px solid var(--border-accent)',
           maxHeight: '80vh',
-          boxShadow: '0 0 80px rgba(59,130,246,0.1), 0 40px 80px rgba(0,0,0,0.6)',
+          boxShadow: `0 20px 60px var(--shadow-color)`
         }}
       >
         {/* Header */}
         <div
           className="flex items-center justify-between px-5 py-3.5 shrink-0"
-          style={{ borderBottom: '1px solid rgba(148,163,184,0.08)', background: 'rgba(10,14,26,0.9)' }}
+          style={{
+            borderBottom: '1px solid var(--border)',
+            background: 'var(--card-bg)'
+          }}
         >
           <div className="flex items-center gap-2.5 min-w-0">
             <div
               className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
-              style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)' }}
+              style={{
+                background: 'var(--accent-glow)',
+                border: '1px solid var(--accent-border)'
+              }}
             >
-              <FileCode className="w-3.5 h-3.5 text-blue-400" />
+              <FileCode className="w-3.5 h-3.5 text-[var(--accent-bright)]" />
             </div>
+
             <div className="min-w-0">
               <p
-                className="text-[13px] font-semibold text-slate-100 truncate"
-                style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                className="text-[13px] font-semibold truncate"
+                style={{
+                  fontFamily: "'IBM Plex Mono', monospace",
+                  color: 'var(--text-primary)'
+                }}
               >
                 {shortPath}
               </p>
+
               {lineInfo && (
-                <p className="text-[10px] text-slate-600 mt-0.5">{lineInfo}</p>
+                <p className="text-[10px] mt-0.5 text-[var(--text-muted)]">
+                  {lineInfo}
+                </p>
               )}
             </div>
           </div>
@@ -109,53 +123,55 @@ export default function CodeViewerModal() {
                 onClick={copyCode}
                 className="flex items-center gap-1.5 text-[11px] px-3 py-1.5 rounded-lg transition-all"
                 style={{
-                  background: copied ? 'rgba(16,185,129,0.1)' : 'rgba(148,163,184,0.06)',
-                  border: `1px solid ${copied ? 'rgba(52,211,153,0.2)' : 'rgba(148,163,184,0.1)'}`,
-                  color: copied ? '#34d399' : '#94a3b8',
+                  background: copied ? 'rgba(16,185,129,0.1)' : 'var(--bg-100)',
+                  border: `1px solid ${copied ? 'rgba(16,185,129,0.3)' : 'var(--border)'}`,
+                  color: copied ? 'var(--success)' : 'var(--text-secondary)'
                 }}
               >
                 {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                 {copied ? 'Copied' : 'Copy'}
               </button>
             )}
+
             <button
               onClick={() => setCodeViewer(null)}
-              className="p-1.5 rounded-lg transition-colors text-slate-500 hover:text-slate-300 hover:bg-white/5"
+              className="p-1.5 rounded-lg transition-colors"
+              style={{ color: 'var(--text-muted)' }}
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Code content */}
-        <div className="flex-1 overflow-auto" style={{ minHeight: 0 }}>
+        {/* Code */}
+        <div className="flex-1 overflow-auto">
           {snippet ? (
             <SyntaxHighlighter
-              style={vscDarkPlus}
+              style={isLight ? oneLight : vscDarkPlus}
               language={lang}
               showLineNumbers={!!startLine}
               startingLineNumber={startLine || 1}
               customStyle={{
                 margin: 0,
-                background: '#080d1a',
+                background: 'var(--code-bg)',
                 padding: '1.25rem 1rem',
                 fontSize: '0.8rem',
                 minHeight: '100%',
               }}
               lineNumberStyle={{
-                color: '#2d3a52',
+                color: 'var(--text-faint)',
                 minWidth: '3em',
                 paddingRight: '1em',
                 userSelect: 'none',
               }}
-              wrapLines={true}
+              wrapLines
               lineProps={lineNumber => {
                 if (startLine && lineNumber >= startLine && (!endLine || lineNumber <= endLine)) {
                   return {
                     style: {
-                      background: 'rgba(59,130,246,0.08)',
+                      background: 'var(--accent-glow)',
                       display: 'block',
-                      borderLeft: '2px solid rgba(59,130,246,0.5)',
+                      borderLeft: '2px solid var(--accent)',
                       paddingLeft: '0.5rem',
                       marginLeft: '-0.5rem',
                     }
@@ -168,9 +184,11 @@ export default function CodeViewerModal() {
             </SyntaxHighlighter>
           ) : (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-              <FileCode className="w-10 h-10 text-slate-700 mb-3" />
-              <p className="text-[13px] text-slate-500">No code preview available</p>
-              <p className="text-[11px] text-slate-700 mt-1">
+              <FileCode className="w-10 h-10 text-[var(--text-faint)] mb-3" />
+              <p className="text-[13px] text-[var(--text-secondary)]">
+                No code preview available
+              </p>
+              <p className="text-[11px] text-[var(--text-muted)] mt-1">
                 The AI service returned a reference without a code snippet.
               </p>
             </div>
@@ -180,10 +198,15 @@ export default function CodeViewerModal() {
         {/* Footer */}
         <div
           className="px-5 py-3 shrink-0 flex items-center justify-between"
-          style={{ borderTop: '1px solid rgba(148,163,184,0.06)', background: 'rgba(6,8,16,0.8)' }}
+          style={{
+            borderTop: '1px solid var(--border)',
+            background: 'var(--card-bg)'
+          }}
         >
-          <p className="text-[10px] text-slate-700 font-mono truncate">{filePath}</p>
-          <p className="text-[10px] text-slate-700">{lang}</p>
+          <p className="text-[10px] font-mono truncate text-[var(--text-muted)]">
+            {filePath}
+          </p>
+          <p className="text-[10px] text-[var(--text-muted)]">{lang}</p>
         </div>
       </div>
     </div>
