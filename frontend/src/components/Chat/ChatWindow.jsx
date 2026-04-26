@@ -224,6 +224,7 @@ export default function ChatWindow() {
           <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={() => setShowHistory(v => !v)}
+              title={showHistory ? "Hide history" : "Chat history"}
               className="p-1.5 rounded-lg transition-colors shrink-0"
               style={{ background: showHistory ? 'rgba(59,130,246,0.12)' : 'transparent', color: showHistory ? '#60a5fa' : '#475569' }}
             >

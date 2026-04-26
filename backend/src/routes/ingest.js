@@ -180,7 +180,8 @@ router.post('/', upload.single('file'), async (req, res, next) => {
             code:  'TIMEOUT',
           });
 
-        logger.error(`[ingest] Git error for ${cleanUrl}: ${gitErr.message}`);
+        const safeMsg = gitErr.message.replace(/https?:\/\/[^@]+@/g, 'https://[token]@');
+        logger.error(`[ingest] Git error for ${cleanUrl}: ${safeMsg}`);
         return res.status(400).json({
           error: `Clone failed: ${gitErr.message.slice(0, 300)}`,
           code:  'CLONE_FAILED',
