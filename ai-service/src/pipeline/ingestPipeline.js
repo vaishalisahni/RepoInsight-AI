@@ -13,13 +13,20 @@ const IGNORE = [
   '**/target/**', '**/out/**', '**/__pycache__/**', '**/.cache/**',
   '**/*.min.js', '**/*.min.css', '**/*.map',
   '**/coverage/**', '**/.nyc_output/**',
-  '**/migrations/**.sql',            // skip large SQL dumps
+  '**/migrations/**.sql',
 ];
 
-const MAX_FILES = 2000; // hard cap to avoid OOM
+const MAX_FILES = 2000;
 
 async function run(localPath, faissIndexId) {
   console.log(`[ingest] Starting: ${localPath}`);
+
+  // ── 0. Clear old index first to prevent duplicate vectors on re-index ──────
+  // This is safe — clearIndex removes the .faiss file and meta.json so we
+  // start completely fresh. Without this, every re-index appends duplicate
+  // vectors and the FAISS store grows unboundedly.
+  faissStore.clearIndex(faissIndexId);
+  console.log(`[ingest] Cleared old FAISS index: ${faissIndexId}`);
 
   // ── 1. Discover all supported files ─────────────────────────────────────
   const exts  = getSupportedExtensions();
@@ -32,7 +39,6 @@ async function run(localPath, faissIndexId) {
     nocase:   true,
   });
 
-  // Also match special filenames without extensions
   const specialGlob = await glob(
     '{Dockerfile,Makefile,Gemfile,Pipfile,*.env,.env,go.mod,go.sum,requirements.txt,setup.py,setup.cfg}',
     { cwd: localPath, ignore: IGNORE, absolute: true }

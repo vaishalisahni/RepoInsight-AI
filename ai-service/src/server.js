@@ -21,6 +21,24 @@ app.post('/query', async (req, res, next) => {
   catch (err) { next(err); }
 });
 
+// ── Streaming query endpoint ─────────────────────────────────────────────────
+// Returns SSE (text/event-stream). Each event is: data: {"token":"..."}\n\n
+// Final event is: data: {"done":true,"sources":[...]}\n\n
+app.post('/query/stream', async (req, res, next) => {
+  try {
+    // Pass res directly so queryStream can write SSE headers + tokens
+    await queryPipeline.queryStream({ ...req.body, res });
+  } catch (err) {
+    // Headers may already be sent; try to send error event
+    if (!res.headersSent) {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+    res.end();
+  }
+});
+
 app.post('/explain', async (req, res, next) => {
   try { res.json(await queryPipeline.explain(req.body)); }
   catch (err) { next(err); }

@@ -23,6 +23,7 @@ const useAppStore = create((set, get) => ({
       messages:     [],
       sessionId:    null,
       graphData:    null,
+      selectedFile: null,
     });
   },
 
@@ -56,6 +57,11 @@ const useAppStore = create((set, get) => ({
   // { filePath, startLine, endLine, snippet }
   codeViewer:    null,
   setCodeViewer: (data) => set({ codeViewer: data }),
+
+  // ── File Explorer ─────────────────────────────────────────────────────────
+  // Set when user clicks a file in the sidebar explorer
+  selectedFile:    null,
+  setSelectedFile: (path) => set({ selectedFile: path }),
 }));
 
 export default useAppStore;

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Github, ArrowRight, Loader2, XCircle, Zap, GitBranch,
   Brain, Sparkles, Upload, ChevronRight, Activity, FileArchive,
-  CheckCircle2, RefreshCw
+  CheckCircle2, RefreshCw, Trash2, AlertTriangle, X
 } from 'lucide-react';
 import { ingestGithub, getRepos, getRepoStatus, deleteRepo, reindexRepo } from '../api/client';
 import api from '../api/client';
@@ -31,6 +31,94 @@ function StatusBadge({ status }) {
   );
 }
 
+// ── Custom confirm modal ───────────────────────────────────────────────────────
+function ConfirmModal({ isOpen, title, message, confirmLabel = 'Delete', onConfirm, onCancel, danger = true }) {
+  useEffect(() => {
+    if (!isOpen) return;
+    const handler = (e) => { if (e.key === 'Escape') onCancel(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [isOpen, onCancel]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)' }}
+      onClick={onCancel}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl overflow-hidden"
+        style={{
+          background: 'rgba(10,14,26,0.98)',
+          border: '1px solid rgba(148,163,184,0.12)',
+          boxShadow: '0 40px 80px rgba(0,0,0,0.6)',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="px-5 pt-5 pb-4 flex items-start gap-3">
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+            style={{
+              background: danger ? 'rgba(239,68,68,0.1)' : 'rgba(59,130,246,0.1)',
+              border: `1px solid ${danger ? 'rgba(239,68,68,0.2)' : 'rgba(59,130,246,0.2)'}`,
+            }}
+          >
+            <AlertTriangle className="w-4 h-4" style={{ color: danger ? '#ef4444' : '#3b82f6' }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[15px] font-semibold text-slate-100" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+              {title}
+            </p>
+            <p className="text-[13px] text-slate-400 mt-1 leading-relaxed">{message}</p>
+          </div>
+          <button
+            onClick={onCancel}
+            className="p-1 rounded-lg text-slate-600 hover:text-slate-400 hover:bg-white/5 transition-colors shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Actions */}
+        <div
+          className="px-5 py-4 flex items-center justify-end gap-2"
+          style={{ borderTop: '1px solid rgba(148,163,184,0.08)' }}
+        >
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 rounded-xl text-[13px] font-medium text-slate-400 hover:text-slate-200 hover:bg-white/5 transition-all"
+            style={{ border: '1px solid rgba(148,163,184,0.12)' }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 rounded-xl text-[13px] font-semibold text-white transition-all"
+            style={{
+              background: danger
+                ? 'linear-gradient(135deg, #dc2626, #ef4444)'
+                : 'linear-gradient(135deg, #1d4ed8, #3b82f6)',
+              boxShadow: danger
+                ? '0 0 20px rgba(239,68,68,0.25)'
+                : '0 0 20px rgba(59,130,246,0.25)',
+            }}
+            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+          >
+            <span className="flex items-center gap-1.5">
+              <Trash2 className="w-3.5 h-3.5" />
+              {confirmLabel}
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 async function ingestZip(file, name) {
   const formData = new FormData();
   formData.append('file', file);
@@ -52,6 +140,10 @@ export default function Home() {
   const [dragOver,   setDragOver]   = useState(false);
   const [zipFile,    setZipFile]    = useState(null);
   const [zipName,    setZipName]    = useState('');
+
+  // Delete modal state
+  const [deleteModal, setDeleteModal] = useState({ open: false, repoId: null, repoName: '' });
+
   const fileInputRef = useRef(null);
   const { repos, setRepos, setActiveRepo } = useAppStore();
   const navigate = useNavigate();
@@ -134,7 +226,7 @@ export default function Home() {
     }
   }, []);
 
-  const handleDragOver = useCallback((e) => { e.preventDefault(); setDragOver(true); }, []);
+  const handleDragOver  = useCallback((e) => { e.preventDefault(); setDragOver(true); }, []);
   const handleDragLeave = useCallback(() => setDragOver(false), []);
 
   const openRepo = (repo) => {
@@ -142,10 +234,16 @@ export default function Home() {
     navigate('/dashboard');
   };
 
-  const handleDelete = async (e, id) => {
+  // Opens custom modal instead of browser confirm()
+  const confirmDelete = (e, repo) => {
     e.stopPropagation();
-    if (!confirm('Delete this repository?')) return;
-    await deleteRepo(id).catch(() => {});
+    setDeleteModal({ open: true, repoId: repo._id, repoName: repo.name });
+  };
+
+  const handleDelete = async () => {
+    const { repoId } = deleteModal;
+    setDeleteModal({ open: false, repoId: null, repoName: '' });
+    await deleteRepo(repoId).catch(() => {});
     setRepos(await getRepos());
   };
 
@@ -169,6 +267,16 @@ export default function Home() {
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
     >
+      {/* Custom delete confirmation modal */}
+      <ConfirmModal
+        isOpen={deleteModal.open}
+        title="Delete repository?"
+        message={`"${deleteModal.repoName}" will be permanently removed along with all its indexed data and chat history. This cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteModal({ open: false, repoId: null, repoName: '' })}
+      />
+
       {/* Global drag overlay */}
       {dragOver && (
         <div
@@ -254,7 +362,6 @@ export default function Home() {
               <p className="text-[11px] font-semibold uppercase tracking-widest mb-3" style={{ color: '#475569' }}>
                 GitHub Repository URL
               </p>
-              {/* Stack vertically on very small screens */}
               <div className="flex flex-col sm:flex-row gap-2.5">
                 <div
                   className="flex-1 flex items-center gap-2.5 rounded-xl px-3.5"
@@ -268,7 +375,7 @@ export default function Home() {
                     placeholder="https://github.com/owner/repo"
                     disabled={loading}
                     className="flex-1 bg-transparent outline-none text-[13px] md:text-[14px]"
-                    style={{ color: '#f1f5f9', fontFamily: "'IBM Plex Mono', monospace", minWidth: 0 }}
+                    style={{ color: '#f1f5f9', fontFamily: "'IBM Plex Mono', monospace", minWidth: 0, border: 'none', boxShadow: 'none' }}
                   />
                 </div>
                 <button
@@ -282,7 +389,6 @@ export default function Home() {
                 </button>
               </div>
 
-              {/* Quick picks — scrollable on mobile */}
               <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1" style={{ WebkitOverflowScrolling: 'touch' }}>
                 <span className="text-[11px] shrink-0" style={{ color: '#334155' }}>Try:</span>
                 {DEMO_REPOS.map(r => (
@@ -308,7 +414,6 @@ export default function Home() {
               <p className="text-[11px] font-semibold uppercase tracking-widest mb-3" style={{ color: '#475569' }}>
                 Upload ZIP Archive
               </p>
-
               <div
                 onClick={() => !zipFile && !loading && fileInputRef.current?.click()}
                 className="relative rounded-xl p-5 flex flex-col items-center justify-center gap-3 transition-all"
@@ -372,7 +477,7 @@ export default function Home() {
                       onChange={e => setZipName(e.target.value)}
                       placeholder="Repository name (optional)"
                       className="flex-1 bg-transparent outline-none text-[13px]"
-                      style={{ color: '#f1f5f9' }}
+                      style={{ color: '#f1f5f9', border: 'none', boxShadow: 'none' }}
                     />
                   </div>
                   <button
@@ -389,7 +494,6 @@ export default function Home() {
             </>
           )}
 
-          {/* Status messages */}
           {statusMsg && (
             <div className="mt-3 flex items-center gap-2 text-[12px] text-slate-400">
               <Loader2 className="w-3 h-3 animate-spin text-blue-400 shrink-0" />
@@ -415,11 +519,10 @@ export default function Home() {
             <span className="text-[11px] text-slate-600">{readyRepos.length} ready</span>
           </div>
 
-          {/* 1 col on mobile, 2 on sm, 3 on lg */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {repos.map(repo => {
               const shortName = repo.name.includes('/') ? repo.name.split('/').pop() : repo.name;
-              const isReady = repo.status === 'ready';
+              const isReady   = repo.status === 'ready';
               const isIndexing = repo.status === 'indexing';
 
               return (
@@ -462,16 +565,17 @@ export default function Home() {
                         <button
                           onClick={e => handleReindex(e, repo._id)}
                           title="Re-index repository"
-                          className="opacity-0 group-hover:opacity-100 p-1 rounded-lg transition-all text-slate-600 hover:text-blue-400 hover:bg-blue-500/10"
+                          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all text-slate-600 hover:text-blue-400 hover:bg-blue-500/10"
                         >
                           <RefreshCw className="w-3.5 h-3.5" />
                         </button>
                       )}
                       <button
-                        onClick={e => handleDelete(e, repo._id)}
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded-lg transition-all text-slate-600 hover:text-red-400 hover:bg-red-500/10"
+                        onClick={e => confirmDelete(e, repo)}
+                        title="Delete repository"
+                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg transition-all text-slate-600 hover:text-red-400 hover:bg-red-500/10"
                       >
-                        <XCircle className="w-3.5 h-3.5" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -517,7 +621,6 @@ export default function Home() {
             What you can do
           </p>
         )}
-        {/* 2 col on mobile, 4 on md */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {FEATURES.map(f => {
             const Icon = f.icon;

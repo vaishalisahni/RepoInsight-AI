@@ -47,9 +47,65 @@ async function query({ faissIndexId, question, history, repoName }) {
       startLine: c.startLine,
       endLine:   c.endLine,
       language:  c.language,
-      snippet:   (c.content || '').slice(0, 200),
+      snippet:   (c.content || '').slice(0, 1500), // increased from 200 → 1500
     })),
   };
+}
+
+// ── Streaming query — sends SSE tokens directly to Express res ─────────────
+async function queryStream({ faissIndexId, question, history, repoName, res }) {
+  // Set SSE headers before anything else
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // disable nginx buffering if used
+  res.flushHeaders();
+
+  try {
+    const chunks = await retrieve(faissIndexId, question);
+    const ctx    = chunks.map(c =>
+      `// ${c.filePath}${c.startLine ? ` (lines ${c.startLine}-${c.endLine})` : ''}${c.language ? ` [${c.language}]` : ''}\n${c.content}`
+    ).join('\n\n---\n\n');
+
+    const stream = await groq.chat.completions.create({
+      model:       MODEL,
+      temperature: 0.2,
+      max_tokens:  parseInt(process.env.MAX_TOKENS || '4096'),
+      stream:      true,
+      messages: [
+        {
+          role:    'system',
+          content: `You are an expert code assistant for "${repoName}". Always cite file paths and line numbers when referencing code.`,
+        },
+        ...history,
+        { role: 'user', content: PROMPTS.query(repoName, question, ctx) },
+      ],
+    });
+
+    // Stream tokens one by one
+    for await (const chunk of stream) {
+      const token = chunk.choices[0]?.delta?.content || '';
+      if (token) {
+        res.write(`data: ${JSON.stringify({ token })}\n\n`);
+      }
+    }
+
+    // Send sources + done signal as final event
+    const sources = chunks.map(c => ({
+      filePath:  c.filePath,
+      startLine: c.startLine,
+      endLine:   c.endLine,
+      language:  c.language,
+      snippet:   (c.content || '').slice(0, 1500),
+    }));
+
+    res.write(`data: ${JSON.stringify({ done: true, sources })}\n\n`);
+    res.end();
+  } catch (err) {
+    // Send error event so client knows something went wrong
+    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+    res.end();
+  }
 }
 
 async function explain({ filePath, selection, chunks, faissIndexId }) {
@@ -104,4 +160,4 @@ async function generateSummary(ctx, techStack, languages) {
   );
 }
 
-module.exports = { query, explain, trace, impact, generateSummary };
+module.exports = { query, queryStream, explain, trace, impact, generateSummary };

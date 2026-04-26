@@ -22,12 +22,6 @@ const NAV_TABS = [
 
 // ─── File tree helpers ────────────────────────────────────────────────────────
 
-/**
- * Converts a flat array of file paths like:
- *   ["src/index.js", "src/utils/helper.js", "package.json"]
- * into a nested tree:
- *   { src: { "index.js": null, utils: { "helper.js": null } }, "package.json": null }
- */
 function buildTree(filePaths) {
   const root = {};
   for (const fp of filePaths) {
@@ -36,7 +30,6 @@ function buildTree(filePaths) {
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i];
       if (i === parts.length - 1) {
-        // leaf = file
         node[part] = { __isFile: true, __path: fp };
       } else {
         if (!node[part]) node[part] = {};
@@ -47,9 +40,6 @@ function buildTree(filePaths) {
   return root;
 }
 
-/**
- * Sort: folders first, then files, both alphabetically.
- */
 function sortedEntries(obj) {
   const entries = Object.entries(obj).filter(([k]) => k !== '__isFile' && k !== '__path');
   return entries.sort(([aKey, aVal], [bKey, bVal]) => {
@@ -64,8 +54,6 @@ function sortedEntries(obj) {
 // ─── FileTree component ───────────────────────────────────────────────────────
 
 function FileTree({ node, depth = 0, onFileClick, searchQuery, isLight }) {
-  const [open, setOpen] = useState(depth < 1); // auto-open first level
-
   const entries = sortedEntries(node);
   if (!entries.length) return null;
 
@@ -75,7 +63,6 @@ function FileTree({ node, depth = 0, onFileClick, searchQuery, isLight }) {
         const isFile   = value?.__isFile;
         const filePath = value?.__path;
 
-        // Filter by search
         if (searchQuery && isFile && !filePath.toLowerCase().includes(searchQuery.toLowerCase())) {
           return null;
         }
@@ -116,7 +103,6 @@ function FileTree({ node, depth = 0, onFileClick, searchQuery, isLight }) {
           );
         }
 
-        // Folder
         return (
           <FolderNode
             key={name}
@@ -178,7 +164,6 @@ function FolderNode({ name, node, depth, onFileClick, searchQuery, isLight, forc
   );
 }
 
-/** Map common file extensions to a recognisable dot colour */
 function getExtColor(ext) {
   const map = {
     js: '#f7df1e', jsx: '#61dafb', ts: '#3178c6', tsx: '#61dafb',
@@ -190,29 +175,37 @@ function getExtColor(ext) {
   return map[ext] || '#6b7280';
 }
 
-// ─── FileExplorerPanel (shown inside sidebar when Files tab active) ────────────
+// ─── FileExplorerPanel ────────────────────────────────────────────────────────
 
-function FileExplorerPanel({ activeRepo, isLight, onFileClick, isOpen }) {
+function FileExplorerPanel({ activeRepo, isLight, onFileClick }) {
   const [searchQuery, setSearchQuery] = useState('');
   const borderColor = isLight ? 'rgba(15,23,42,0.1)' : 'rgba(148,163,184,0.08)';
 
-  const allFiles = activeRepo?.keyFiles || [];
-  // Also try to build from graph nodes if available
-  const graphFiles = activeRepo?.graph?.nodes?.map(n => n.filePath || n.id).filter(Boolean) || [];
-  const files = graphFiles.length > allFiles.length ? graphFiles : allFiles;
+  // Build file list — prefer graph nodes (has ALL files), fall back to keyFiles
+  const graphFiles = (activeRepo?.graph?.nodes || [])
+    .map(n => n.filePath || n.id)
+    .filter(Boolean);
+  const keyFiles = activeRepo?.keyFiles || [];
+  const files = graphFiles.length > 0 ? graphFiles : keyFiles;
 
-  if (!files.length) {
+  // Deduplicate
+  const uniqueFiles = [...new Set(files)].sort();
+
+  if (uniqueFiles.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 px-3 text-center">
         <FileCode className="w-6 h-6 mb-2" style={{ color: isLight ? '#cbd5e1' : '#1e2d45' }} />
         <p className="text-[11px]" style={{ color: isLight ? '#94a3b8' : '#475569' }}>
           No files indexed yet
         </p>
+        <p className="text-[10px] mt-1" style={{ color: isLight ? '#cbd5e1' : '#334155' }}>
+          Index a repository to browse files
+        </p>
       </div>
     );
   }
 
-  const tree = buildTree(files);
+  const tree = buildTree(uniqueFiles);
 
   return (
     <div className="flex flex-col h-full">
@@ -220,7 +213,10 @@ function FileExplorerPanel({ activeRepo, isLight, onFileClick, isOpen }) {
       <div className="px-2 py-2 shrink-0" style={{ borderBottom: `1px solid ${borderColor}` }}>
         <div
           className="flex items-center gap-1.5 rounded-lg px-2 py-1"
-          style={{ background: isLight ? 'rgba(15,23,42,0.06)' : 'rgba(148,163,184,0.06)', border: `1px solid ${borderColor}` }}
+          style={{
+            background: isLight ? 'rgba(15,23,42,0.06)' : 'rgba(148,163,184,0.06)',
+            border: `1px solid ${borderColor}`,
+          }}
         >
           <Search className="w-3 h-3 shrink-0" style={{ color: isLight ? '#94a3b8' : '#475569' }} />
           <input
@@ -228,10 +224,24 @@ function FileExplorerPanel({ activeRepo, isLight, onFileClick, isOpen }) {
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Filter files…"
             className="bg-transparent outline-none text-[11px] w-full"
-            style={{ color: isLight ? '#334155' : '#94a3b8', fontFamily: "'IBM Plex Mono', monospace" }}
+            style={{
+              color: isLight ? '#334155' : '#94a3b8',
+              fontFamily: "'IBM Plex Mono', monospace",
+              border: 'none',
+              boxShadow: 'none',
+            }}
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              style={{ color: isLight ? '#94a3b8' : '#475569' }}
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
         </div>
       </div>
+
       {/* Tree */}
       <div className="flex-1 overflow-y-auto px-1 py-1">
         <FileTree
@@ -242,26 +252,25 @@ function FileExplorerPanel({ activeRepo, isLight, onFileClick, isOpen }) {
           isLight={isLight}
         />
       </div>
+
       {/* Count footer */}
       <div className="px-3 py-1.5 shrink-0" style={{ borderTop: `1px solid ${borderColor}` }}>
         <p className="text-[10px]" style={{ color: isLight ? '#94a3b8' : '#475569' }}>
-          {files.length.toLocaleString()} files indexed
+          {uniqueFiles.length.toLocaleString()} files indexed
         </p>
       </div>
     </div>
   );
 }
 
-// ─── Tooltip component (simple CSS tooltip) ──────────────────────────────────
+// ─── Tooltip ─────────────────────────────────────────────────────────────────
 
 function Tooltip({ children, label, disabled }) {
   if (disabled) return children;
   return (
     <div className="relative group/tip">
       {children}
-      <div
-        className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50 opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150"
-      >
+      <div className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50 opacity-0 group-hover/tip:opacity-100 transition-opacity duration-150">
         <div
           className="px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap"
           style={{
@@ -291,42 +300,45 @@ export default function Sidebar({ onClose, onFileSelect }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  useEffect(() => { getRepos().then(setRepos).catch(() => {}); }, []);
+  useEffect(() => {
+    getRepos().then(setRepos).catch(() => {});
+  }, []);
 
   const readyRepos  = repos.filter(r => r.status === 'ready');
   const isDashboard = location.pathname === '/dashboard';
 
-  const handleLogout = async () => { await logout(); navigate('/login'); };
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
 
   const isMobile = typeof window !== 'undefined' && window.innerWidth <= 768;
   const isOpen   = isMobile ? true : sidebarOpen;
 
-  // ── Theme colours ──────────────────────────────────────────────────────────
+  // ── Theme colours ─────────────────────────────────────────────────────────
   const sidebarBg   = isLight ? 'rgba(241,245,249,0.98)' : 'rgba(8,11,20,0.97)';
   const borderColor = isLight ? 'rgba(15,23,42,0.1)'     : 'rgba(148,163,184,0.08)';
   const textMuted   = isLight ? '#64748b' : '#64748b';
   const textLabel   = isLight ? '#94a3b8' : '#475569';
   const emptyColor  = isLight ? '#cbd5e1' : '#1e2d45';
 
-  // ── File click handler: opens explain panel or triggers callback ───────────
+  // ── File click: call onFileSelect from Dashboard, then switch to chat ─────
   const handleFileClick = (filePath, fileName) => {
     if (onFileSelect) {
       onFileSelect(filePath);
     } else {
-      // Fall back: switch to chat tab so user can ask about the file
       setActiveTab('chat');
     }
     onClose?.();
   };
 
-  // ── Show file explorer inline when Files tab is active + sidebar open ──────
+  // Show file explorer inline when Files tab active + sidebar open + repo selected
   const showFileExplorer = isDashboard && activeRepoId && activeTab === 'explorer' && isOpen;
 
   return (
     <aside
       className="relative flex flex-col shrink-0 overflow-hidden transition-all duration-300 ease-in-out"
       style={{
-        // Wider when file explorer is open so tree is readable
         width:          showFileExplorer ? '260px' : (isOpen ? '220px' : '52px'),
         height:         '100%',
         background:     sidebarBg,
@@ -334,7 +346,7 @@ export default function Sidebar({ onClose, onFileSelect }) {
         backdropFilter: 'blur(20px)',
       }}
     >
-      {/* ── Mobile close button ─────────────────────────────────────────────── */}
+      {/* Mobile close button */}
       {onClose && (
         <button
           onClick={onClose}
@@ -351,56 +363,43 @@ export default function Sidebar({ onClose, onFileSelect }) {
 
       <div className="flex flex-col flex-1 overflow-hidden">
 
-        {/* ── Logo / collapse row ─────────────────────────────────────────────
-            The toggle button is HERE — inside the sidebar at the top,
-            always visible, never clipped by overflow:hidden.
-        ────────────────────────────────────────────────────────────────────── */}
-        {!onClose && (
-          <div
-            className="flex items-center shrink-0 px-2 pt-2 pb-1"
-            style={{
-              justifyContent: isOpen ? 'space-between' : 'center',
-              borderBottom: `1px solid ${borderColor}`,
-              minHeight: '44px',
-            }}
-          >
-            {isOpen && (
-              <span
-                className="text-[12px] font-bold tracking-tight pl-1 select-none"
-                style={{ color: isLight ? '#0f172a' : '#e2e8f0', fontFamily: "'Space Grotesk', sans-serif" }}
-              >
-                RepoInsight
-              </span>
-            )}
+      {/* ── Balanced Minimal Top ────────────────────────────────────────── */}
+{!onClose && (
+  <div
+    className="flex items-center shrink-0 px-4"
+    style={{
+      height: '56px', 
+      justifyContent: 'space-between', // Pushes label left, toggle right
+      borderBottom: `1px solid ${borderColor}`,
+    }}
+  >
+    {isOpen ? (
+      <span 
+        className="text-[10px] font-bold tracking-[0.2em] uppercase"
+        style={{ color: textLabel, opacity: 0.6 }}
+      >
+        Explorer
+      </span>
+    ) : <div />}
 
-            {/* ← THIS is the new toggle — inside the sidebar, never clipped */}
-            <button
-              onClick={toggleSidebar}
-              title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-              className="hidden md:flex w-7 h-7 rounded-lg items-center justify-center transition-all hover:scale-105"
-              style={{
-                background: isLight ? 'rgba(15,23,42,0.06)' : 'rgba(148,163,184,0.08)',
-                border: `1px solid ${borderColor}`,
-                flexShrink: 0,
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'rgba(59,130,246,0.12)';
-                e.currentTarget.style.borderColor = 'rgba(59,130,246,0.25)';
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = isLight ? 'rgba(15,23,42,0.06)' : 'rgba(148,163,184,0.08)';
-                e.currentTarget.style.borderColor = borderColor;
-              }}
-            >
-              {sidebarOpen
-                ? <PanelLeftClose className="w-3.5 h-3.5" style={{ color: textMuted }} />
-                : <PanelLeftOpen  className="w-3.5 h-3.5" style={{ color: textMuted }} />
-              }
-            </button>
-          </div>
-        )}
+    <button
+      onClick={toggleSidebar}
+      className="w-7 h-7 rounded-md flex items-center justify-center transition-all"
+      style={{ 
+        background: isLight ? 'rgba(15,23,42,0.03)' : 'rgba(148,163,184,0.05)',
+        border: `1px solid ${borderColor}`
+      }}
+    >
+      {isOpen ? (
+        <PanelLeftClose className="w-3.5 h-3.5" style={{ color: textMuted }} />
+      ) : (
+        <PanelLeftOpen className="w-3.5 h-3.5" style={{ color: textMuted }} />
+      )}
+    </button>
+  </div>
+)}
 
-        {/* ── Home nav ────────────────────────────────────────────────────── */}
+        {/* ── Home nav ──────────────────────────────────────────────────────── */}
         <div className="px-2 pt-2 pb-1 shrink-0">
           <Tooltip label="Home" disabled={isOpen}>
             <SidebarItem
@@ -414,7 +413,7 @@ export default function Sidebar({ onClose, onFileSelect }) {
           </Tooltip>
         </div>
 
-        {/* ── Tools ───────────────────────────────────────────────────────── */}
+        {/* ── Tools ─────────────────────────────────────────────────────────── */}
         {isDashboard && activeRepoId && (
           <div
             className="px-2 py-1 shrink-0"
@@ -440,14 +439,13 @@ export default function Sidebar({ onClose, onFileSelect }) {
           </div>
         )}
 
-        {/* ── File Explorer (inline, takes remaining height when active) ──── */}
+        {/* ── File Explorer (inline, takes remaining height when active) ────── */}
         {showFileExplorer ? (
           <div className="flex-1 overflow-hidden min-h-0">
             <FileExplorerPanel
               activeRepo={activeRepo}
               isLight={isLight}
               onFileClick={handleFileClick}
-              isOpen={isOpen}
             />
           </div>
         ) : (
@@ -471,7 +469,12 @@ export default function Sidebar({ onClose, onFileSelect }) {
               return isOpen ? (
                 <button
                   key={repo._id}
-                  onClick={() => { setActiveRepo(repo._id); setGraphData(null); navigate('/dashboard'); onClose?.(); }}
+                  onClick={() => {
+                    setActiveRepo(repo._id);
+                    setGraphData(null);
+                    navigate('/dashboard');
+                    onClose?.();
+                  }}
                   className="w-full text-left px-2.5 py-2 rounded-xl mb-0.5 transition-all"
                   style={{
                     background: isActive ? activeBg : 'transparent',
@@ -484,7 +487,9 @@ export default function Sidebar({ onClose, onFileSelect }) {
                     <div
                       className="w-6 h-6 rounded-md flex items-center justify-center shrink-0 text-[10px] font-bold"
                       style={{
-                        background: isActive ? 'rgba(59,130,246,0.2)' : (isLight ? 'rgba(15,23,42,0.08)' : 'rgba(148,163,184,0.08)'),
+                        background: isActive
+                          ? 'rgba(59,130,246,0.2)'
+                          : (isLight ? 'rgba(15,23,42,0.08)' : 'rgba(148,163,184,0.08)'),
                         color: isActive ? '#3b82f6' : textMuted,
                         fontFamily: "'IBM Plex Mono', monospace",
                       }}
@@ -502,7 +507,11 @@ export default function Sidebar({ onClose, onFileSelect }) {
               ) : (
                 <Tooltip key={repo._id} label={shortName} disabled={false}>
                   <button
-                    onClick={() => { setActiveRepo(repo._id); setGraphData(null); navigate('/dashboard'); }}
+                    onClick={() => {
+                      setActiveRepo(repo._id);
+                      setGraphData(null);
+                      navigate('/dashboard');
+                    }}
                     className="w-full h-9 rounded-xl mb-0.5 flex items-center justify-center transition-all"
                     style={{
                       background: isActive ? activeBg : 'transparent',
@@ -512,7 +521,9 @@ export default function Sidebar({ onClose, onFileSelect }) {
                     <div
                       className="w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold"
                       style={{
-                        background: isActive ? 'rgba(59,130,246,0.25)' : (isLight ? 'rgba(15,23,42,0.08)' : 'rgba(148,163,184,0.1)'),
+                        background: isActive
+                          ? 'rgba(59,130,246,0.25)'
+                          : (isLight ? 'rgba(15,23,42,0.08)' : 'rgba(148,163,184,0.1)'),
                         color: isActive ? '#3b82f6' : textMuted,
                         fontFamily: "'IBM Plex Mono', monospace",
                       }}
@@ -533,7 +544,7 @@ export default function Sidebar({ onClose, onFileSelect }) {
           </div>
         )}
 
-        {/* ── Bottom actions ────────────────────────────────────────────────── */}
+        {/* ── Bottom actions ─────────────────────────────────────────────────── */}
         <div className="px-2 py-2 shrink-0 space-y-0.5" style={{ borderTop: `1px solid ${borderColor}` }}>
           <Tooltip label="Add repository" disabled={isOpen}>
             <SidebarItem
@@ -566,7 +577,11 @@ export default function Sidebar({ onClose, onFileSelect }) {
             >
               <div
                 className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 font-bold text-[11px] overflow-hidden"
-                style={{ background: 'linear-gradient(135deg, #1d4ed8, #0ea5e9)', color: '#fff', fontFamily: "'Space Grotesk', sans-serif" }}
+                style={{
+                  background: 'linear-gradient(135deg, #1d4ed8, #0ea5e9)',
+                  color: '#fff',
+                  fontFamily: "'Space Grotesk', sans-serif",
+                }}
               >
                 {user.avatarUrl
                   ? <img src={user.avatarUrl} className="w-7 h-7 object-cover" alt="" />
@@ -629,12 +644,12 @@ export default function Sidebar({ onClose, onFileSelect }) {
 // ─── SidebarItem ──────────────────────────────────────────────────────────────
 
 function SidebarItem({ icon: Icon, label, active, collapsed, onClick, isLight }) {
-  const activeColor  = '#3b82f6';
+  const activeColor   = '#3b82f6';
   const inactiveColor = isLight ? '#64748b' : '#64748b';
-  const activeBg     = 'rgba(59,130,246,0.12)';
-  const activeBorder = 'rgba(59,130,246,0.18)';
-  const hoverBg      = isLight ? 'rgba(15,23,42,0.05)' : 'rgba(148,163,184,0.06)';
-  const hoverColor   = isLight ? '#0f172a' : '#94a3b8';
+  const activeBg      = 'rgba(59,130,246,0.12)';
+  const activeBorder  = 'rgba(59,130,246,0.18)';
+  const hoverBg       = isLight ? 'rgba(15,23,42,0.05)' : 'rgba(148,163,184,0.06)';
+  const hoverColor    = isLight ? '#0f172a' : '#94a3b8';
 
   return (
     <button
