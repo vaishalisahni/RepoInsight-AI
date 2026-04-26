@@ -7,13 +7,10 @@ import Register  from './pages/Register';
 import Settings  from './pages/Settings';
 import { ProtectedRoute, GuestRoute } from './components/ProtectedRoute';
 import useAuthStore from './store/authStore';
+import useThemeStore from './store/themeStore';
 import Navbar from './components/Navbar';
 import { Outlet } from 'react-router-dom';
 
-/**
- * Layout: navbar (56px fixed) + scrollable content area
- * Using 100dvh so it handles mobile browser chrome correctly.
- */
 function Layout() {
   return (
     <div
@@ -33,29 +30,23 @@ function Layout() {
 }
 
 export default function App() {
-  const initAuth = useAuthStore(s => s.initAuth);
+  const initAuth  = useAuthStore(s => s.initAuth);
+  const initTheme = useThemeStore(s => s.initTheme);
 
-  // Check session once on mount
   useEffect(() => {
     initAuth();
+    initTheme(); // apply saved theme on mount
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <BrowserRouter>
       <Routes>
         <Route element={<Layout />}>
-          {/* Public */}
           <Route path="/" element={<Home />} />
-
-          {/* Guest-only (redirect to dashboard if already logged in) */}
           <Route path="/login"    element={<GuestRoute><Login /></GuestRoute>} />
           <Route path="/register" element={<GuestRoute><Register /></GuestRoute>} />
-
-          {/* Protected (redirect to login if not authenticated) */}
           <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/settings"  element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-
-          {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
