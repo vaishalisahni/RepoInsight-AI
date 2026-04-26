@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Zap, Search, Loader2, AlertTriangle, FileCode } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -24,18 +24,39 @@ function RiskBadge({ text }) {
   );
 }
 
-export default function ImpactPanel() {
+/**
+ * ImpactPanel
+ *
+ * Props:
+ *   prefillFilePath    — when set, auto-fills the file path input and runs analysis
+ *   onPrefillConsumed  — callback to clear the prefill after it's been used
+ */
+export default function ImpactPanel({ prefillFilePath, onPrefillConsumed }) {
   const [filePath, setFilePath] = useState('');
   const [loading,  setLoading]  = useState(false);
   const [result,   setResult]   = useState(null);
   const [error,    setError]    = useState('');
   const { activeRepoId, activeRepo } = useAppStore();
 
-  const run = async () => {
-    if (!filePath.trim() || !activeRepoId) return;
+  // ── Consume prefill from FileDetailPanel's "Impact" button ───────────────
+  useEffect(() => {
+    if (prefillFilePath) {
+      setFilePath(prefillFilePath);
+      setResult(null);
+      setError('');
+      // Auto-run the analysis
+      runAnalysis(prefillFilePath);
+      // Tell Dashboard we've consumed it
+      onPrefillConsumed?.();
+    }
+  }, [prefillFilePath]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const runAnalysis = async (path) => {
+    const fp = (path || filePath).trim();
+    if (!fp || !activeRepoId) return;
     setLoading(true); setError(''); setResult(null);
     try {
-      const data = await analyzeImpact(activeRepoId, filePath.trim());
+      const data = await analyzeImpact(activeRepoId, fp);
       setResult(data);
     } catch (e) {
       setError(e.response?.data?.error || e.message);
@@ -68,11 +89,13 @@ export default function ImpactPanel() {
             <input
               value={filePath}
               onChange={e => setFilePath(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && runAnalysis()}
               placeholder="src/services/authService.js"
               className="input-base rounded-lg px-3 py-2 text-sm font-mono"
             />
           </div>
 
+          {/* Key files quick-pick */}
           {activeRepo?.keyFiles?.length > 0 && (
             <div>
               <p className="text-[10px] text-[#4a476a] mb-1.5">Key files:</p>
@@ -89,7 +112,7 @@ export default function ImpactPanel() {
           )}
 
           <button
-            onClick={run}
+            onClick={() => runAnalysis()}
             disabled={loading || !filePath.trim() || !activeRepoId}
             className="btn-primary w-full text-white text-sm px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
           >
@@ -132,6 +155,7 @@ export default function ImpactPanel() {
           <div className="text-center py-12 text-[#2e2a55]">
             <Zap className="w-10 h-10 mx-auto mb-3 opacity-20" />
             <p className="text-sm">Enter a file path to analyze change impact</p>
+            <p className="text-[11px] mt-1 opacity-60">Or click "Impact" on any file in the explorer</p>
           </div>
         )}
       </div>

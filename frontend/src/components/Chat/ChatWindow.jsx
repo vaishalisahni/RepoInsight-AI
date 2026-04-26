@@ -1,13 +1,15 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Send, RotateCcw, Sparkles, MessageSquare, History,
   Download, Copy, Check, ChevronLeft, Clock, Trash2, X,
-  AlertTriangle
+  AlertTriangle, Zap
 } from 'lucide-react';
-import { queryRepo, getSessions } from '../../api/client';
+import { getSessions } from '../../api/client';
 import api from '../../api/client';
 import useAppStore from '../../store/appStore';
 import MessageBubble from './MessageBubble';
+
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
 
 const DEFAULT_STARTERS = [
   'Where is authentication handled?',
@@ -61,7 +63,6 @@ function formatSessionDate(dateStr) {
   return date.toLocaleDateString();
 }
 
-// ── Confirm modal (same pattern as Home.jsx) ────────────────────────────────
 function ConfirmModal({ isOpen, title, message, confirmLabel = 'Delete', onConfirm, onCancel }) {
   useEffect(() => {
     if (!isOpen) return;
@@ -100,26 +101,15 @@ function ConfirmModal({ isOpen, title, message, confirmLabel = 'Delete', onConfi
             </p>
             <p className="text-[13px] mt-1 leading-relaxed" style={{ color: 'var(--text-muted)' }}>{message}</p>
           </div>
-          <button
-            onClick={onCancel}
-            className="p-1 rounded-lg transition-colors shrink-0"
-            style={{ color: 'var(--text-muted)' }}
-          >
+          <button onClick={onCancel} className="p-1 rounded-lg transition-colors shrink-0" style={{ color: 'var(--text-muted)' }}>
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div
-          className="px-5 py-4 flex items-center justify-end gap-2"
-          style={{ borderTop: '1px solid var(--border)' }}
-        >
+        <div className="px-5 py-4 flex items-center justify-end gap-2" style={{ borderTop: '1px solid var(--border)' }}>
           <button
             onClick={onCancel}
             className="px-4 py-2 rounded-xl text-[13px] font-medium transition-all"
-            style={{
-              color: 'var(--text-muted)',
-              border: '1px solid var(--border)',
-              background: 'transparent',
-            }}
+            style={{ color: 'var(--text-muted)', border: '1px solid var(--border)', background: 'transparent' }}
             onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-100)'}
             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
           >
@@ -128,10 +118,7 @@ function ConfirmModal({ isOpen, title, message, confirmLabel = 'Delete', onConfi
           <button
             onClick={onConfirm}
             className="px-4 py-2 rounded-xl text-[13px] font-semibold text-white transition-all"
-            style={{
-              background: 'linear-gradient(135deg, #dc2626, #ef4444)',
-              boxShadow: '0 0 16px rgba(239,68,68,0.25)',
-            }}
+            style={{ background: 'linear-gradient(135deg, #dc2626, #ef4444)', boxShadow: '0 0 16px rgba(239,68,68,0.25)' }}
             onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
             onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
           >
@@ -152,25 +139,36 @@ export default function ChatWindow() {
   const [sessions, setSessions]       = useState([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [copied, setCopied]           = useState(false);
-
-  // Confirm modal state
+  const [streaming, setStreaming]     = useState(false);
   const [confirmModal, setConfirmModal] = useState({ open: false, type: null, sessionId: null });
 
   const bottomRef     = useRef(null);
   const textareaRef   = useRef(null);
+  const abortRef      = useRef(null); // for cancelling SSE streams
+
   const {
     messages, activeRepoId, activeRepo, sessionId, isLoading,
     addMessage, setSessionId, setLoading, clearMessages,
+    pendingQuestion, clearPendingQuestion,
   } = useAppStore();
+
+  // ── Consume pendingQuestion set from file explorer ────────────────────────
+  useEffect(() => {
+    if (pendingQuestion) {
+      // Put it into the textarea so user can review before sending
+      setInput(pendingQuestion);
+      clearPendingQuestion();
+      // Auto-focus the textarea
+      setTimeout(() => textareaRef.current?.focus(), 100);
+    }
+  }, [pendingQuestion, clearPendingQuestion]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+  }, [messages, isLoading, streaming]);
 
   useEffect(() => {
-    if (showHistory && activeRepoId) {
-      fetchSessions();
-    }
+    if (showHistory && activeRepoId) fetchSessions();
   }, [showHistory, activeRepoId]);
 
   const fetchSessions = () => {
@@ -183,8 +181,8 @@ export default function ChatWindow() {
 
   const starters = buildStarters(activeRepo);
 
-  const send = async (text) => {
-    const question = (text || input).trim();
+  // ── Streaming SSE send ────────────────────────────────────────────────────
+  const sendStream = useCallback(async (question) => {
     if (!question || !activeRepoId || isLoading) return;
 
     setInput('');
@@ -192,40 +190,148 @@ export default function ChatWindow() {
 
     addMessage({ role: 'user', content: question });
     setLoading(true);
+    setStreaming(true);
+
+    // We'll build the assistant message incrementally
+    let assistantContent = '';
+    let assistantSources = [];
+    let newSessionId = sessionId;
+
+    // Add a placeholder message that we'll update token-by-token
+    const placeholderIdx = useAppStore.getState().messages.length;
+    addMessage({ role: 'assistant', content: '', sources: [], _streaming: true });
 
     try {
-      const data = await queryRepo(activeRepoId, question, sessionId);
-      addMessage({ role: 'assistant', content: data.answer, sources: data.sources });
-      setSessionId(data.sessionId);
+      // Get cookie for auth
+      const response = await fetch(`${BASE_URL}/api/query/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ repoId: activeRepoId, question, sessionId }),
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: 'Stream failed' }));
+        throw new Error(err.error || `HTTP ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      abortRef.current = reader;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // keep incomplete line
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+
+            if (data.token) {
+              assistantContent += data.token;
+              // Update the streaming message in the store
+              useAppStore.setState(state => {
+                const msgs = [...state.messages];
+                const lastAssistantIdx = msgs.map(m => m.role).lastIndexOf('assistant');
+                if (lastAssistantIdx !== -1) {
+                  msgs[lastAssistantIdx] = {
+                    ...msgs[lastAssistantIdx],
+                    content: assistantContent,
+                    _streaming: true,
+                  };
+                }
+                return { messages: msgs };
+              });
+            }
+
+            if (data.done) {
+              assistantSources = data.sources || [];
+              newSessionId = data.sessionId || newSessionId;
+              // Finalize the message
+              useAppStore.setState(state => {
+                const msgs = [...state.messages];
+                const lastAssistantIdx = msgs.map(m => m.role).lastIndexOf('assistant');
+                if (lastAssistantIdx !== -1) {
+                  msgs[lastAssistantIdx] = {
+                    role: 'assistant',
+                    content: assistantContent,
+                    sources: assistantSources,
+                    _streaming: false,
+                  };
+                }
+                return { messages: msgs };
+              });
+            }
+
+            if (data.error) {
+              throw new Error(data.error);
+            }
+          } catch (parseErr) {
+            // skip malformed SSE lines
+          }
+        }
+      }
+
+      if (newSessionId) setSessionId(newSessionId);
+
     } catch (err) {
-      addMessage({
-        role:    'assistant',
-        content: `⚠️ **Error:** ${err.response?.data?.error || err.message}`,
+      // Replace streaming placeholder with error message
+      useAppStore.setState(state => {
+        const msgs = [...state.messages];
+        const lastAssistantIdx = msgs.map(m => m.role).lastIndexOf('assistant');
+        if (lastAssistantIdx !== -1 && msgs[lastAssistantIdx]._streaming) {
+          msgs[lastAssistantIdx] = {
+            role: 'assistant',
+            content: `⚠️ **Error:** ${err.message}`,
+            sources: [],
+          };
+        }
+        return { messages: msgs };
       });
     } finally {
       setLoading(false);
+      setStreaming(false);
+      abortRef.current = null;
     }
-  };
+  }, [activeRepoId, sessionId, isLoading, addMessage, setLoading, setSessionId]);
+
+  const send = useCallback(async (text) => {
+    const question = (text || input).trim();
+    if (!question || !activeRepoId || isLoading) return;
+    await sendStream(question);
+  }, [input, activeRepoId, isLoading, sendStream]);
 
   const handleKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   };
 
-  // ── Delete a single session ───────────────────────────────────────────────
+  // ── Cancel streaming ──────────────────────────────────────────────────────
+  const cancelStream = () => {
+    if (abortRef.current) {
+      try { abortRef.current.cancel(); } catch (_) {}
+      abortRef.current = null;
+    }
+    setLoading(false);
+    setStreaming(false);
+  };
+
   const deleteSession = async (sid) => {
     try {
       await api.delete(`/query/sessions/${sid}`);
       setSessions(prev => prev.filter(s => s._id !== sid));
-      // If the deleted session is the current one, clear chat
-      if (sessionId === sid) {
-        clearMessages();
-      }
+      if (sessionId === sid) clearMessages();
     } catch (err) {
       console.error('Failed to delete session:', err);
     }
   };
 
-  // ── Clear ALL sessions for this repo ─────────────────────────────────────
   const clearAllSessions = async () => {
     try {
       await api.delete(`/query/sessions/repo/${activeRepoId}`);
@@ -239,11 +345,8 @@ export default function ChatWindow() {
   const handleConfirm = async () => {
     const { type, sessionId: sid } = confirmModal;
     setConfirmModal({ open: false, type: null, sessionId: null });
-    if (type === 'single') {
-      await deleteSession(sid);
-    } else if (type === 'all') {
-      await clearAllSessions();
-    }
+    if (type === 'single') await deleteSession(sid);
+    else if (type === 'all') await clearAllSessions();
   };
 
   const exportMarkdown = () => {
@@ -285,7 +388,6 @@ export default function ChatWindow() {
 
   return (
     <>
-      {/* Confirm modal */}
       <ConfirmModal
         isOpen={confirmModal.open}
         title={confirmModal.type === 'all' ? 'Clear all history?' : 'Delete session?'}
@@ -304,24 +406,14 @@ export default function ChatWindow() {
         {showHistory && (
           <div
             className="shrink-0 flex flex-col overflow-hidden"
-            style={{
-              width: '230px',
-              borderRight: '1px solid var(--border)',
-              background: 'var(--sidebar-bg)',
-            }}
+            style={{ width: '230px', borderRight: '1px solid var(--border)', background: 'var(--sidebar-bg)' }}
           >
-            <div
-              className="px-3 py-3 shrink-0 flex items-center justify-between"
-              style={{ borderBottom: '1px solid var(--border)' }}
-            >
+            <div className="px-3 py-3 shrink-0 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
               <div className="flex items-center gap-2">
                 <History className="w-3.5 h-3.5 text-blue-400" />
-                <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>
-                  History
-                </span>
+                <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>History</span>
               </div>
               <div className="flex items-center gap-1">
-                {/* Clear all button */}
                 {sessions.length > 0 && (
                   <button
                     onClick={() => setConfirmModal({ open: true, type: 'all', sessionId: null })}
@@ -358,10 +450,7 @@ export default function ChatWindow() {
                 </div>
               ) : (
                 sessions.map((session) => (
-                  <div
-                    key={session._id}
-                    className="group relative mb-1"
-                  >
+                  <div key={session._id} className="group relative mb-1">
                     <button
                       onClick={() => loadSession(session)}
                       className="w-full text-left p-3 rounded-xl transition-all"
@@ -370,38 +459,19 @@ export default function ChatWindow() {
                         background: sessionId === session._id ? 'rgba(59,130,246,0.08)' : 'transparent',
                         borderColor: sessionId === session._id ? 'rgba(59,130,246,0.15)' : 'transparent',
                       }}
-                      onMouseEnter={e => {
-                        if (sessionId !== session._id) {
-                          e.currentTarget.style.border = '1px solid var(--border)';
-                          e.currentTarget.style.background = 'var(--bg-100)';
-                        }
-                      }}
-                      onMouseLeave={e => {
-                        if (sessionId !== session._id) {
-                          e.currentTarget.style.border = '1px solid transparent';
-                          e.currentTarget.style.background = 'transparent';
-                        }
-                      }}
+                      onMouseEnter={e => { if (sessionId !== session._id) { e.currentTarget.style.border = '1px solid var(--border)'; e.currentTarget.style.background = 'var(--bg-100)'; } }}
+                      onMouseLeave={e => { if (sessionId !== session._id) { e.currentTarget.style.border = '1px solid transparent'; e.currentTarget.style.background = 'transparent'; } }}
                     >
                       <p className="text-[12px] truncate mb-1 font-medium pr-5" style={{ color: 'var(--text-secondary)' }}>
                         {formatSessionPreview(session)}
                       </p>
                       <div className="flex items-center justify-between">
-                        <span className="text-[10px]" style={{ color: 'var(--text-faint)' }}>
-                          {session.messages?.length || 0} messages
-                        </span>
-                        <span className="text-[10px]" style={{ color: 'var(--text-faint)' }}>
-                          {formatSessionDate(session.updatedAt || session.createdAt)}
-                        </span>
+                        <span className="text-[10px]" style={{ color: 'var(--text-faint)' }}>{session.messages?.length || 0} messages</span>
+                        <span className="text-[10px]" style={{ color: 'var(--text-faint)' }}>{formatSessionDate(session.updatedAt || session.createdAt)}</span>
                       </div>
                     </button>
-
-                    {/* Per-session delete button */}
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setConfirmModal({ open: true, type: 'single', sessionId: session._id });
-                      }}
+                      onClick={(e) => { e.stopPropagation(); setConfirmModal({ open: true, type: 'single', sessionId: session._id }); }}
                       title="Delete session"
                       className="absolute top-2.5 right-2 opacity-0 group-hover:opacity-100 transition-all p-1 rounded-lg"
                       style={{ color: 'var(--text-muted)', background: 'var(--bg-50)' }}
@@ -422,22 +492,14 @@ export default function ChatWindow() {
           {/* Header */}
           <div
             className="flex items-center justify-between px-3 md:px-5 py-2.5 shrink-0"
-            style={{
-              borderBottom:   '1px solid var(--border)',
-              background:     'var(--navbar-bg)',
-              backdropFilter: 'blur(10px)',
-              minHeight: '48px',
-            }}
+            style={{ borderBottom: '1px solid var(--border)', background: 'var(--navbar-bg)', backdropFilter: 'blur(10px)', minHeight: '48px' }}
           >
             <div className="flex items-center gap-2 min-w-0">
               <button
                 onClick={() => setShowHistory(v => !v)}
-                title={showHistory ? "Hide history" : "Chat history"}
+                title={showHistory ? 'Hide history' : 'Chat history'}
                 className="p-1.5 rounded-lg transition-colors shrink-0"
-                style={{
-                  background: showHistory ? 'rgba(59,130,246,0.12)' : 'transparent',
-                  color: showHistory ? '#60a5fa' : 'var(--text-muted)',
-                }}
+                style={{ background: showHistory ? 'rgba(59,130,246,0.12)' : 'transparent', color: showHistory ? '#60a5fa' : 'var(--text-muted)' }}
               >
                 <History className="w-3.5 h-3.5" />
               </button>
@@ -447,6 +509,16 @@ export default function ChatWindow() {
                   {activeRepo?.name?.includes('/') ? activeRepo.name.split('/').pop() : activeRepo?.name || 'Chat'}
                 </p>
               </div>
+              {/* Streaming indicator */}
+              {streaming && (
+                <span
+                  className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full"
+                  style={{ background: 'rgba(59,130,246,0.1)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.2)' }}
+                >
+                  <Zap className="w-2.5 h-2.5" />
+                  streaming
+                </span>
+              )}
             </div>
 
             {messages.length > 0 && (
@@ -503,21 +575,9 @@ export default function ChatWindow() {
                         key={s}
                         onClick={() => send(s)}
                         className="text-left text-[11px] md:text-[12px] px-3 py-2.5 rounded-xl transition-all"
-                        style={{
-                          background: 'var(--bg-100)',
-                          border: '1px solid var(--border)',
-                          color: 'var(--text-muted)',
-                        }}
-                        onMouseEnter={e => {
-                          e.currentTarget.style.border = '1px solid rgba(59,130,246,0.2)';
-                          e.currentTarget.style.background = 'rgba(59,130,246,0.06)';
-                          e.currentTarget.style.color = 'var(--text-secondary)';
-                        }}
-                        onMouseLeave={e => {
-                          e.currentTarget.style.border = '1px solid var(--border)';
-                          e.currentTarget.style.background = 'var(--bg-100)';
-                          e.currentTarget.style.color = 'var(--text-muted)';
-                        }}
+                        style={{ background: 'var(--bg-100)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
+                        onMouseEnter={e => { e.currentTarget.style.border = '1px solid rgba(59,130,246,0.2)'; e.currentTarget.style.background = 'rgba(59,130,246,0.06)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.border = '1px solid var(--border)'; e.currentTarget.style.background = 'var(--bg-100)'; e.currentTarget.style.color = 'var(--text-muted)'; }}
                       >
                         {s}
                       </button>
@@ -529,14 +589,13 @@ export default function ChatWindow() {
 
             {messages.map((msg, i) => <MessageBubble key={i} message={msg} />)}
 
-            {isLoading && (
+            {isLoading && !streaming && (
               <div className="flex items-start gap-2.5">
                 <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-[9px] font-bold text-white"
                   style={{ background: 'linear-gradient(135deg, #2563eb, #0ea5e9)', minWidth: '24px' }}>
                   AI
                 </div>
-                <div className="px-4 py-3 rounded-2xl rounded-tl-sm"
-                  style={{ background: 'var(--bg-100)', border: '1px solid var(--border)' }}>
+                <div className="px-4 py-3 rounded-2xl rounded-tl-sm" style={{ background: 'var(--bg-100)', border: '1px solid var(--border)' }}>
                   <div className="flex gap-1.5 items-center h-4">
                     {[0,1,2].map(i => (
                       <span key={i} className="typing-dot w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#60a5fa' }} />
@@ -552,11 +611,7 @@ export default function ChatWindow() {
           {/* Input */}
           <div
             className="shrink-0 px-3 md:px-4 py-2.5 md:py-3"
-            style={{
-              borderTop: '1px solid var(--border)',
-              background: 'var(--navbar-bg)',
-              paddingBottom: 'max(10px, env(safe-area-inset-bottom))',
-            }}
+            style={{ borderTop: '1px solid var(--border)', background: 'var(--navbar-bg)', paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}
           >
             <div
               className="flex gap-2 items-end rounded-xl px-3 py-2"
@@ -568,7 +623,7 @@ export default function ChatWindow() {
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKey}
                 placeholder={activeRepoId ? 'Ask about your codebase…' : 'Select a repository first'}
-                disabled={!activeRepoId}
+                disabled={!activeRepoId || isLoading}
                 rows={1}
                 className="flex-1 bg-transparent outline-none text-[14px] py-0.5 resize-none"
                 style={{ color: 'var(--text-primary)', caretColor: '#60a5fa', maxHeight: '100px', fontFamily: "'Manrope', sans-serif", minHeight: '24px', border: 'none', boxShadow: 'none' }}
@@ -577,6 +632,16 @@ export default function ChatWindow() {
                   e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px';
                 }}
               />
+              {/* Cancel stream button */}
+              {streaming && (
+                <button
+                  onClick={cancelStream}
+                  className="flex-shrink-0 p-2 rounded-lg transition-all text-red-400 hover:bg-red-500/10"
+                  title="Cancel"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
               <button
                 onClick={() => send()}
                 disabled={!input.trim() || !activeRepoId || isLoading}

@@ -21,11 +21,12 @@ async function llm(system, user, history = []) {
   return res.choices[0].message.content;
 }
 
+// FIX: use searchMeta (faissId-aware) instead of raw meta[label] lookup
 async function retrieve(id, q) {
-  const v    = await embedSingle(q);
-  const idx  = await faissStore.search(id, v, TOP_K);
-  const meta = faissStore.loadMeta(id);
-  return idx.filter(i => i >= 0 && i < meta.length).map(i => meta[i]).filter(Boolean);
+  const v      = await embedSingle(q);
+  const labels = await faissStore.search(id, v, TOP_K);
+  // searchMeta maps FAISS labels → meta entries using stored faissId field
+  return faissStore.searchMeta(id, labels);
 }
 
 async function query({ faissIndexId, question, history, repoName }) {
@@ -47,18 +48,17 @@ async function query({ faissIndexId, question, history, repoName }) {
       startLine: c.startLine,
       endLine:   c.endLine,
       language:  c.language,
-      snippet:   (c.content || '').slice(0, 1500), // increased from 200 → 1500
+      snippet:   (c.content || '').slice(0, 1500),
     })),
   };
 }
 
-// ── Streaming query — sends SSE tokens directly to Express res ─────────────
+// ── Streaming query — sends SSE tokens directly to Express res ──────────────
 async function queryStream({ faissIndexId, question, history, repoName, res }) {
-  // Set SSE headers before anything else
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no'); // disable nginx buffering if used
+  res.setHeader('X-Accel-Buffering', 'no');
   res.flushHeaders();
 
   try {
@@ -82,7 +82,6 @@ async function queryStream({ faissIndexId, question, history, repoName, res }) {
       ],
     });
 
-    // Stream tokens one by one
     for await (const chunk of stream) {
       const token = chunk.choices[0]?.delta?.content || '';
       if (token) {
@@ -90,7 +89,6 @@ async function queryStream({ faissIndexId, question, history, repoName, res }) {
       }
     }
 
-    // Send sources + done signal as final event
     const sources = chunks.map(c => ({
       filePath:  c.filePath,
       startLine: c.startLine,
@@ -102,7 +100,6 @@ async function queryStream({ faissIndexId, question, history, repoName, res }) {
     res.write(`data: ${JSON.stringify({ done: true, sources })}\n\n`);
     res.end();
   } catch (err) {
-    // Send error event so client knows something went wrong
     res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
     res.end();
   }

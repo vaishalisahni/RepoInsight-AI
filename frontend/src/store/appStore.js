@@ -38,15 +38,19 @@ const useAppStore = create((set, get) => ({
   sessionId:     null,
   isLoading:     false,
 
-  // pendingQuestion: set from outside (e.g. file explorer) to pre-fill chat input
+  // pendingQuestion: set externally (e.g. file explorer "Ask in Chat")
+  // ChatWindow watches this via useEffect and auto-fills its textarea
   pendingQuestion: null,
 
-  addMessage:          (msg) => set(s => ({ messages: [...s.messages, msg] })),
-  setSessionId:        (id)  => set({ sessionId: id }),
-  setLoading:          (v)   => set({ isLoading: v }),
-  clearMessages:       ()    => set({ messages: [], sessionId: null }),
-  setPendingQuestion:  (q)   => set({ pendingQuestion: q }),
-  clearPendingQuestion: ()   => set({ pendingQuestion: null }),
+  addMessage:   (msg) => set(s => ({ messages: [...s.messages, msg] })),
+  setSessionId: (id)  => set({ sessionId: id }),
+  setLoading:   (v)   => set({ isLoading: v }),
+  clearMessages: ()   => set({ messages: [], sessionId: null }),
+
+  // Used by Dashboard → handleAskInChat
+  setPendingQuestion: (q) => set({ pendingQuestion: q }),
+  // Used by ChatWindow after consuming the question
+  clearPendingQuestion: () => set({ pendingQuestion: null }),
 
   // ── Graph ─────────────────────────────────────────────────────────────────
   graphData:    null,
