@@ -174,6 +174,22 @@ router.get('/sessions/:repoId', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ── PATCH /api/query/sessions/:sessionId/title ── rename a session ────────
+router.patch('/sessions/:sessionId/title', async (req, res, next) => {
+  try {
+    const { title } = req.body;
+    if (!title?.trim()) return res.status(400).json({ error: 'title is required.' });
+ 
+    const session = await Session.findOneAndUpdate(
+      { _id: req.params.sessionId, userId: req.user.id },
+      { title: title.trim().slice(0, 80), updatedAt: new Date() },
+      { new: true }
+    );
+    if (!session) return res.status(404).json({ error: 'Session not found.' });
+    res.json({ message: 'Title updated.', title: session.title });
+  } catch (err) { next(err); }
+});
+
 // ── DELETE /api/query/sessions/:sessionId ── delete one session ───────────
 router.delete('/sessions/:sessionId', async (req, res, next) => {
   try {
