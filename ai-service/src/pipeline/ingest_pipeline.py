@@ -11,6 +11,7 @@ from src.parser.parser import parse_file, get_supported_extensions
 from src.embeddings.embedder import embed_texts
 from src.embeddings import faiss_store
 from src.pipeline.query_pipeline import generate_summary
+from src.graph.builder import build as build_graph
 
 MAX_FILES = 2000
 
@@ -64,9 +65,9 @@ def run_ingest(local_path: str, faiss_index_id: str) -> dict:
         }
 
     # 2. Parse files
-    all_chunks        = []
+    all_chunks         = []
     file_parse_results = {}
-    lang_counts       = {}
+    lang_counts        = {}
 
     for fp in files:
         try:
@@ -126,21 +127,9 @@ def run_ingest(local_path: str, faiss_index_id: str) -> dict:
     faiss_store.save_meta(faiss_index_id, meta)
     print(f"[ingest] FAISS stored {len(vectors)} vectors")
 
-    # 4. Build simple dependency graph (file nodes only — no native tree-sitter needed)
-    nodes = [
-        {
-            "id":       rel,
-            "label":    Path(rel).name,
-            "filePath": rel,
-            "type":     _detect_file_type(rel),
-            "language": result.get("language", "unknown"),
-            "functions": [],
-            "classes":   [],
-            "exports":   [],
-        }
-        for rel, result in file_parse_results.items()
-    ]
-    graph = {"nodes": nodes, "edges": []}
+    # 4. Build dependency graph (nodes + edges via builder.py)
+    graph = build_graph(file_parse_results)
+    print(f"[ingest] Graph: {len(graph['nodes'])} nodes, {len(graph['edges'])} edges")
 
     # 5. Detect tech stack from config files
     tech_stack = _detect_tech_stack(local_path, list(file_parse_results.keys()))
@@ -176,14 +165,14 @@ def run_ingest(local_path: str, faiss_index_id: str) -> dict:
 
 def _detect_file_type(file_path: str) -> str:
     p = file_path.lower()
-    if "route" in p or "controller" in p:   return "route"
-    if "service" in p:                       return "service"
-    if "model" in p or "schema" in p:        return "model"
-    if "middleware" in p:                    return "middleware"
-    if "util" in p or "helper" in p:         return "utility"
-    if "test" in p or "spec" in p:           return "test"
+    if "route" in p or "controller" in p:        return "route"
+    if "service" in p:                            return "service"
+    if "model" in p or "schema" in p:             return "model"
+    if "middleware" in p:                         return "middleware"
+    if "util" in p or "helper" in p:              return "utility"
+    if "test" in p or "spec" in p:                return "test"
     if "index" in p or "main" in p or "app." in p: return "entry"
-    if "config" in p:                        return "config"
+    if "config" in p:                             return "config"
     if ".jsx" in p or ".tsx" in p or "component" in p: return "component"
     return "module"
 
@@ -208,17 +197,17 @@ def _detect_tech_stack(project_root: str, file_list: list[str]) -> dict:
             deps = list(pkg.get("dependencies", {}).keys()) + \
                    list(pkg.get("devDependencies", {}).keys())
             JS_MAP = {
-                "react": ("React", "frontend", "#61DAFB"),
-                "next": ("Next.js", "fullstack", "#000000"),
-                "vue": ("Vue.js", "frontend", "#42B883"),
-                "express": ("Express", "backend", "#000000"),
-                "fastify": ("Fastify", "backend", "#000000"),
-                "nestjs": ("NestJS", "backend", "#E0234E"),
-                "@nestjs/core": ("NestJS", "backend", "#E0234E"),
-                "mongoose": ("MongoDB/Mongoose", "database", "#47A248"),
-                "prisma": ("Prisma", "database", "#0C344B"),
-                "tailwindcss": ("Tailwind CSS", "styling", "#38BDF8"),
-                "vite": ("Vite", "build", "#646CFF"),
+                "react":         ("React",            "frontend", "#61DAFB"),
+                "next":          ("Next.js",           "fullstack", "#000000"),
+                "vue":           ("Vue.js",            "frontend", "#42B883"),
+                "express":       ("Express",           "backend",  "#000000"),
+                "fastify":       ("Fastify",           "backend",  "#000000"),
+                "nestjs":        ("NestJS",            "backend",  "#E0234E"),
+                "@nestjs/core":  ("NestJS",            "backend",  "#E0234E"),
+                "mongoose":      ("MongoDB/Mongoose",  "database", "#47A248"),
+                "prisma":        ("Prisma",            "database", "#0C344B"),
+                "tailwindcss":   ("Tailwind CSS",      "styling",  "#38BDF8"),
+                "vite":          ("Vite",              "build",    "#646CFF"),
             }
             for dep in deps:
                 if dep.lower() in JS_MAP:
@@ -233,14 +222,14 @@ def _detect_tech_stack(project_root: str, file_list: list[str]) -> dict:
             with open(req_path) as f:
                 lines = [l.split(">=")[0].split("==")[0].strip().lower() for l in f]
             PY_MAP = {
-                "django": ("Django", "backend", "#092E20"),
-                "flask": ("Flask", "backend", "#000000"),
-                "fastapi": ("FastAPI", "backend", "#009688"),
-                "sqlalchemy": ("SQLAlchemy", "database", "#D71F00"),
-                "celery": ("Celery", "queue", "#37B24D"),
-                "pandas": ("Pandas", "data", "#150458"),
-                "torch": ("PyTorch", "ml", "#EE4C2C"),
-                "tensorflow": ("TensorFlow", "ml", "#FF6F00"),
+                "django":       ("Django",      "backend",  "#092E20"),
+                "flask":        ("Flask",       "backend",  "#000000"),
+                "fastapi":      ("FastAPI",     "backend",  "#009688"),
+                "sqlalchemy":   ("SQLAlchemy",  "database", "#D71F00"),
+                "celery":       ("Celery",      "queue",    "#37B24D"),
+                "pandas":       ("Pandas",      "data",     "#150458"),
+                "torch":        ("PyTorch",     "ml",       "#EE4C2C"),
+                "tensorflow":   ("TensorFlow",  "ml",       "#FF6F00"),
             }
             for line in lines:
                 if line in PY_MAP:
@@ -251,20 +240,17 @@ def _detect_tech_stack(project_root: str, file_list: list[str]) -> dict:
     # File fingerprints
     all_paths = " ".join(file_list).lower()
     if "docker-compose" in all_paths or "dockerfile" in all_paths:
-        add("Docker", "infra", "#2496ED")
+        add("Docker",        "infra",   "#2496ED")
     if "go.mod" in all_paths:
-        add("Go Module", "backend", "#00ACD7")
+        add("Go Module",     "backend", "#00ACD7")
     if "cargo.toml" in all_paths:
-        add("Rust/Cargo", "backend", "#DE3522")
+        add("Rust/Cargo",    "backend", "#DE3522")
     if "gemfile" in all_paths:
-        add("Ruby/Bundler", "backend", "#CC342D")
-
-    # Primary language
-    lang_from_files = _infer_lang(file_list)
+        add("Ruby/Bundler",  "backend", "#CC342D")
 
     return {
         "frameworks":      frameworks,
-        "primaryLanguage": lang_from_files,
+        "primaryLanguage": _infer_lang(file_list),
     }
 
 

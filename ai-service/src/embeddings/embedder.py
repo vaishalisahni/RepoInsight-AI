@@ -22,7 +22,7 @@ def embed_texts(texts: list[str]) -> list[list[float]]:
     """Embed a list of texts, returns list of float vectors."""
     model = get_model()
     # sentence-transformers handles batching internally
-    embeddings = model.encode(texts, batch_size=32, normalize_embeddings=True)
+    embeddings = model.encode(texts, batch_size=16, normalize_embeddings=True, show_progress_bar=True)
     return embeddings.tolist()
 
 
