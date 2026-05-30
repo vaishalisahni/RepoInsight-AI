@@ -12,9 +12,23 @@ node_modules/
 **/.env
 
 # ======================
+# Python
+# ======================
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+**/.pytest_cache/
+**/.mypy_cache/
+
+# ======================
 # Logs
 # ======================
 logs/
+**/logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -26,6 +40,8 @@ yarn-error.log*
 dist/
 build/
 .out/
+out/
+**/out/
 
 # ======================
 # OS / Editor files
@@ -36,7 +52,7 @@ Thumbs.db
 .idea/
 
 # ======================
-# AI / ML generated data (IMPORTANT)
+# AI / ML generated data
 # ======================
 ai-service/data/
 ai-service/data/faiss_index/
@@ -49,14 +65,9 @@ tmp/
 temp/
 
 # ======================
-# Git internals (safety)
+# VSCode extension artifacts
 # ======================
-.git/
-
-# ======================
-# VSCode extension build junk
-# ======================
-vscode-extension/**/node_modules/
+*.vsix
 
 # ======================
 # Misc
