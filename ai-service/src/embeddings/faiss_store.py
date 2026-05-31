@@ -4,7 +4,7 @@ import numpy as np
 import faiss
 
 BASE = os.environ.get("FAISS_INDEX_PATH", "./data/faiss_index")
-DIM = int(os.environ.get("EMBEDDINGS_DIM", "384"))
+DIM = int(os.environ.get("EMBEDDINGS_DIM", "1024"))
 
 
 def _paths(ns: str) -> tuple[str, str]:

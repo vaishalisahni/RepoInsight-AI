@@ -67,11 +67,13 @@ const useAppStore = create(
       // ── File Explorer ─────────────────────────────────────────────────────────
       selectedFile:    null,
       setSelectedFile: (path) => set({ selectedFile: path }),
+
+      // ── Repos hydration flag — triggers re-fetch after page refresh ───────────
+      needsRepoSync: false,
+      setNeedsRepoSync: (v) => set({ needsRepoSync: v }),
     }),
     {
       name: 'repoinsight-app',
-      // FIX: persist activeRepoId, activeRepo, and repos so dashboard
-      // survives a browser refresh without losing repo selection
       partialize: (s) => ({
         activeRepoId: s.activeRepoId,
         activeRepo:   s.activeRepo,
@@ -79,12 +81,13 @@ const useAppStore = create(
         activeTab:    s.activeTab,
         sidebarOpen:  s.sidebarOpen,
       }),
-      // After rehydration, sync activeRepo from repos list in case it was updated
       onRehydrateStorage: () => (state) => {
         if (state?.activeRepoId && state?.repos?.length) {
           const repo = state.repos.find(r => r._id === state.activeRepoId);
           if (repo) state.activeRepo = repo;
         }
+        // Signal that we need a fresh repo sync from the server
+        if (state) state.needsRepoSync = true;
       },
     }
   )

@@ -3,7 +3,7 @@ flask==3.0.2
 flask-cors==4.0.0
 
 # AI / Embeddings
-sentence-transformers==2.7.0   # same model as Node version, pure Python
+voyageai
 faiss-cpu==1.13.2              # pure pip install, no C++ compilation needed
 groq==0.9.0                    # Groq LLM API
 

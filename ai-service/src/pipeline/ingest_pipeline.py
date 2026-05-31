@@ -107,7 +107,11 @@ def run_ingest(local_path: str, faiss_index_id: str) -> dict:
     ]
 
     print(f"[ingest] Embedding {len(texts)} chunks...")
-    vectors  = embed_texts(texts)
+    try:
+        vectors = embed_texts(texts)
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        raise
     start_id = faiss_store.add_vectors(faiss_index_id, vectors)
 
     meta = [

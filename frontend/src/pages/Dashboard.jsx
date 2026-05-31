@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Sidebar         from '../components/Sidebar';
 import ChatWindow      from '../components/Chat/ChatWindow';
 import DependencyGraph from '../components/Graph/DependencyGraph';
@@ -8,7 +8,7 @@ import RepoSummary     from '../components/Panel/RepoSummary';
 import TechStackBadge  from '../components/TechStack/TechStackBadge';
 import CodeViewerModal from '../components/Chat/CodeViewerModal';
 import useAppStore     from '../store/appStore';
-import { getGraph, explainFile }    from '../api/client';
+import { getGraph, explainFile, getRepos } from '../api/client';
 import {
   Loader2, AlertCircle, GitBranch, MessageSquare,
   Activity, Zap, BookOpen, FolderOpen, FileCode,
@@ -137,7 +137,6 @@ function FileDetailPanel({ filePath, repoId, onAskInChat, onRunImpact, onClose }
       <div className="flex-1 overflow-y-auto p-5 space-y-4" style={{ minHeight: 0 }}>
         {/* Action buttons */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          {/* Ask in Chat — now correctly switches tab AND sets question */}
           <button
             onClick={() => onAskInChat(`Explain what ${fileName} does`)}
             className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-[12px] font-semibold text-white transition-all btn-primary"
@@ -146,7 +145,6 @@ function FileDetailPanel({ filePath, repoId, onAskInChat, onRunImpact, onClose }
             Ask in Chat
           </button>
 
-          {/* AI Explain */}
           <button
             onClick={handleExplain}
             disabled={explaining}
@@ -164,7 +162,6 @@ function FileDetailPanel({ filePath, repoId, onAskInChat, onRunImpact, onClose }
             {explaining ? 'Explaining…' : 'AI Explain'}
           </button>
 
-          {/* Impact — switches to Impact tab and pre-fills the file path */}
           <button
             onClick={() => onRunImpact(filePath)}
             className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-[12px] font-semibold transition-all"
@@ -181,7 +178,6 @@ function FileDetailPanel({ filePath, repoId, onAskInChat, onRunImpact, onClose }
           </button>
         </div>
 
-        {/* Error */}
         {error && (
           <div
             className="p-3 rounded-xl text-[12px]"
@@ -191,7 +187,6 @@ function FileDetailPanel({ filePath, repoId, onAskInChat, onRunImpact, onClose }
           </div>
         )}
 
-        {/* AI Explanation */}
         {explanation && (
           <div className="card-glass rounded-xl p-4">
             <div className="flex items-center gap-2 mb-3 pb-2" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -242,7 +237,6 @@ function FileDetailPanel({ filePath, repoId, onAskInChat, onRunImpact, onClose }
           </div>
         </div>
 
-        {/* File path info */}
         <div
           className="rounded-xl p-3 font-mono text-[11px]"
           style={{ background: 'var(--bg-100)', border: '1px solid var(--border)', color: 'var(--text-muted)' }}
@@ -255,7 +249,6 @@ function FileDetailPanel({ filePath, repoId, onAskInChat, onRunImpact, onClose }
   );
 }
 
-// ── Explorer empty state ──────────────────────────────────────────────────────
 function ExplorerEmptyState({ activeRepo }) {
   return (
     <div className="flex flex-col items-center justify-center text-center px-8 h-full">
@@ -315,17 +308,69 @@ function ExplorerEmptyState({ activeRepo }) {
   );
 }
 
+// ── Mobile swipe hook ─────────────────────────────────────────────────────────
+function useSwipeToOpenSidebar(onOpen, enabled = true) {
+  const touchStartX = useRef(null);
+  const touchStartY = useRef(null);
+
+  useEffect(() => {
+    if (!enabled) return;
+
+    const handleTouchStart = (e) => {
+      touchStartX.current = e.touches[0].clientX;
+      touchStartY.current = e.touches[0].clientY;
+    };
+
+    const handleTouchEnd = (e) => {
+      if (touchStartX.current === null) return;
+      const dx = e.changedTouches[0].clientX - touchStartX.current;
+      const dy = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
+      // Swipe right from left edge (within 40px), primarily horizontal
+      if (touchStartX.current < 40 && dx > 60 && dy < 80) {
+        onOpen();
+      }
+      touchStartX.current = null;
+      touchStartY.current = null;
+    };
+
+    document.addEventListener('touchstart', handleTouchStart, { passive: true });
+    document.addEventListener('touchend', handleTouchEnd, { passive: true });
+    return () => {
+      document.removeEventListener('touchstart', handleTouchStart);
+      document.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [onOpen, enabled]);
+}
+
 export default function Dashboard() {
   const {
     activeRepoId, activeRepo, activeTab, setActiveTab,
     graphData, setGraphData, selectedFile, setSelectedFile,
-    setPendingQuestion,
+    setPendingQuestion, repos, setRepos, needsRepoSync, setNeedsRepoSync,
   } = useAppStore();
 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [openFile, setOpenFile]   = useState(null);
-  // For ImpactPanel pre-fill
   const [impactFile, setImpactFile] = useState(null);
+  const [repoSynced, setRepoSynced] = useState(false);
+
+  // ── FIX: On mount, always refresh repos from server to handle page refresh ──
+  useEffect(() => {
+    if (needsRepoSync && !repoSynced) {
+      setRepoSynced(true);
+      setNeedsRepoSync(false);
+      getRepos()
+        .then(fresh => setRepos(fresh))
+        .catch(() => {});
+    }
+  }, [needsRepoSync, repoSynced, setRepos, setNeedsRepoSync]);
+
+  // Also refresh on every mount regardless (lightweight call)
+  useEffect(() => {
+    getRepos()
+      .then(fresh => setRepos(fresh))
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (activeRepoId && activeTab === 'graph' && !graphData) {
@@ -333,9 +378,8 @@ export default function Dashboard() {
         .then(setGraphData)
         .catch(err => console.error('[graph]', err.response?.data?.error || err.message));
     }
-  }, [activeTab, activeRepoId]);
+  }, [activeTab, activeRepoId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // When a file is selected from sidebar: open detail panel in explorer tab
   const handleFileSelect = useCallback((filePath) => {
     setOpenFile(filePath);
     setSelectedFile(filePath);
@@ -343,17 +387,11 @@ export default function Dashboard() {
     setMobileSidebarOpen(false);
   }, [setSelectedFile, setActiveTab]);
 
-  // "Ask in Chat" from FileDetailPanel:
-  // 1. Switch to chat tab
-  // 2. Set pendingQuestion in store (ChatWindow will pick it up via useEffect)
   const handleAskInChat = useCallback((question) => {
     setPendingQuestion(question);
     setActiveTab('chat');
   }, [setPendingQuestion, setActiveTab]);
 
-  // "Impact" from FileDetailPanel:
-  // 1. Switch to Impact tab
-  // 2. Pass the filePath so ImpactPanel pre-fills it
   const handleRunImpact = useCallback((filePath) => {
     setImpactFile(filePath);
     setActiveTab('impact');
@@ -363,6 +401,12 @@ export default function Dashboard() {
     if (tabId === 'repos') setMobileSidebarOpen(true);
     else { setActiveTab(tabId); setMobileSidebarOpen(false); }
   };
+
+  // ── Mobile swipe-to-open sidebar ─────────────────────────────────────────
+  useSwipeToOpenSidebar(
+    () => setMobileSidebarOpen(true),
+    !mobileSidebarOpen
+  );
 
   if (!activeRepoId) {
     return (
@@ -412,6 +456,19 @@ export default function Dashboard() {
             <Sidebar onClose={() => setMobileSidebarOpen(false)} onFileSelect={handleFileSelect} />
           </div>
         </>
+      )}
+
+      {/* Mobile swipe hint — subtle left edge indicator */}
+      {!mobileSidebarOpen && (
+        <div
+          className="md:hidden fixed left-0 top-1/2 -translate-y-1/2 z-30 pointer-events-none"
+          style={{
+            width: '3px',
+            height: '48px',
+            background: 'linear-gradient(to right, rgba(59,130,246,0.5), transparent)',
+            borderRadius: '0 4px 4px 0',
+          }}
+        />
       )}
 
       {/* Main content column */}
@@ -492,7 +549,7 @@ export default function Dashboard() {
             <div className="h-full overflow-y-auto"><TracePanel /></div>
           )}
 
-          {/* ── IMPACT TAB ── pass impactFile so panel can pre-fill ── */}
+          {/* ── IMPACT TAB ── */}
           {activeTab === 'impact' && (
             <div className="h-full overflow-y-auto">
               <ImpactPanel prefillFilePath={impactFile} onPrefillConsumed={() => setImpactFile(null)} />

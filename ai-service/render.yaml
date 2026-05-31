@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: repoinsight-ai
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn server:app --workers 1 --bind 0.0.0.0:$PORT --timeout 300
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: VOYAGE_API_KEY
+        sync: false
+      - key: CHAT_MODEL
+        value: llama-3.3-70b-versatile
+      - key: EMBEDDINGS_DIM
+        value: "1024"
+      - key: FAISS_INDEX_PATH
+        value: ./data/faiss_index
+      - key: MAX_TOKENS
+        value: "4096"
+      - key: TOP_K_RESULTS
+        value: "8"
