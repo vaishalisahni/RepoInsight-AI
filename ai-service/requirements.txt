@@ -5,7 +5,8 @@ flask-cors==4.0.0
 # AI / Embeddings
 voyageai
 faiss-cpu==1.13.2              # pure pip install, no C++ compilation needed
-groq==0.9.0                    # Groq LLM API
+groq==0.13.1
+httpx==0.27.2                   # Groq LLM API
 
 # Utilities
 numpy==1.26.4
