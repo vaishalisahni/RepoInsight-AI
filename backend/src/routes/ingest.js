@@ -118,14 +118,16 @@ router.post('/', upload.single('file'), async (req, res, next) => {
     fs.mkdirSync(localPath, { recursive: true });
 
     let repoName = name?.trim();
+    const githubToken = user.getGithubToken?.() || process.env.GITHUB_TOKEN || null;
 
     // ── GitHub URL clone ────────────────────────────────────────────────
     if (url) {
       const cleanUrl = url.trim();
       repoName = repoName || cleanUrl.split('/').slice(-2).join('/').replace(/\.git$/, '');
 
-      const githubToken = user.getGithubToken?.() || process.env.GITHUB_TOKEN || null;
-      const cloneUrl    = buildCloneUrl(cleanUrl, githubToken);
+      // REMOVE this line (it's now declared above):
+      // const githubToken = user.getGithubToken?.() || process.env.GITHUB_TOKEN || null;
+      const cloneUrl = buildCloneUrl(cleanUrl, githubToken);
 
       logger.info(
         `[ingest] Cloning ${cleanUrl} (branch: ${branch}) ` +
@@ -287,15 +289,18 @@ router.post('/:repoId/reindex', async (req, res, next) => {
     if (!repo) return res.status(404).json({ error: 'Repo not found.' });
     if (repo.status === 'indexing')
       return res.status(409).json({ error: 'Already indexing.' });
-    if (!repo.localPath || !fs.existsSync(repo.localPath))
+    if (!repo.url && (!repo.localPath || !fs.existsSync(repo.localPath)))
       return res.status(400).json({
-        error: 'Local clone not found. Please re-ingest from source URL.',
+        error: 'No source found. Please re-ingest from source URL.',
       });
+
+    const reindexUser = await User.findById(req.user.id).select('+_githubToken');
+    const reindexToken = reindexUser?.getGithubToken?.() || process.env.GITHUB_TOKEN || null;
 
     await Repo.findByIdAndUpdate(repo._id, { status: 'indexing', errorMessage: null });
     res.json({ message: 'Re-indexing started.' });
 
-    aiClient.ingest(repo._id.toString(), repo.localPath, repo.faissIndexId, repo.url, 'main', null)
+    aiClient.ingest(repo._id.toString(), repo.localPath, repo.faissIndexId, repo.url, 'main', reindexToken)
       .then(async result => {
         await Repo.findByIdAndUpdate(repo._id, {
           status:       'ready',
