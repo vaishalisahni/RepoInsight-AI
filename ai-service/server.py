@@ -21,16 +21,21 @@ def health():
 @app.route("/ingest", methods=["POST"])
 def ingest():
     data = request.get_json()
-    local_path = data.get("localPath")
+    local_path     = data.get("localPath")
     faiss_index_id = data.get("faissIndexId")
-    if not local_path or not faiss_index_id:
-        return jsonify({"error": "localPath and faissIndexId required"}), 400
+    repo_url       = data.get("repoUrl")
+    branch         = data.get("branch", "main")
+    github_token   = data.get("githubToken")
+
+    if not faiss_index_id:
+        return jsonify({"error": "faissIndexId required"}), 400
+    if not local_path and not repo_url:
+        return jsonify({"error": "localPath or repoUrl required"}), 400
     try:
-        result = run_ingest(local_path, faiss_index_id)
+        result = run_ingest(local_path, faiss_index_id, repo_url, branch, github_token)
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 @app.route("/query", methods=["POST"])
 def query_route():

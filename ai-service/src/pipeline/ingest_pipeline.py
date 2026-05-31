@@ -1,10 +1,10 @@
 """
 ingest_pipeline.py
 Scans a cloned repo, parses all files, embeds chunks, stores in FAISS.
-Identical behaviour to the Node version.
 """
 
 import os
+import subprocess
 import glob as glob_module
 from pathlib import Path
 from src.parser.parser import parse_file, get_supported_extensions
@@ -45,7 +45,30 @@ def _discover_files(local_path: str) -> list[str]:
     return files[:MAX_FILES]
 
 
-def run_ingest(local_path: str, faiss_index_id: str) -> dict:
+def run_ingest(local_path: str, faiss_index_id: str, repo_url: str = None, branch: str = "main", github_token: str = None) -> dict:
+
+    # ── Clone if URL provided (production: AI service clones independently) ──
+    if repo_url:
+        local_path = f"/tmp/repos/{faiss_index_id}"
+        os.makedirs(local_path, exist_ok=True)
+
+        clone_url = repo_url
+        if github_token:
+            from urllib.parse import urlparse, urlunparse
+            parsed = urlparse(repo_url)
+            clone_url = urlunparse(parsed._replace(netloc=f"{github_token}@{parsed.netloc}"))
+
+        print(f"[ingest] Cloning {repo_url} (branch: {branch})")
+        result = subprocess.run(
+            ["git", "clone", "--depth", "1", "--branch", branch,
+             "--single-branch", clone_url, local_path],
+            capture_output=True, text=True, timeout=120
+        )
+        if result.returncode != 0:
+            safe_err = result.stderr.replace(github_token or "", "[token]")
+            raise Exception(f"Clone failed: {safe_err[:300]}")
+        print(f"[ingest] Clone complete")
+
     print(f"[ingest] Starting: {local_path}")
 
     # Clear old index to prevent duplicate vectors on re-index

@@ -219,7 +219,7 @@ router.post('/', upload.single('file'), async (req, res, next) => {
 
     res.json({ repoId: repo._id, status: 'indexing', message: 'Ingestion started.' });
 
-    aiClient.ingest(repo._id.toString(), localPath, repoId)
+    aiClient.ingest(repo._id.toString(), localPath, repoId, url?.trim() || null, branch, githubToken)
       .then(async result => {
         await Repo.findByIdAndUpdate(repo._id, {
           status:       'ready',
@@ -295,7 +295,7 @@ router.post('/:repoId/reindex', async (req, res, next) => {
     await Repo.findByIdAndUpdate(repo._id, { status: 'indexing', errorMessage: null });
     res.json({ message: 'Re-indexing started.' });
 
-    aiClient.ingest(repo._id.toString(), repo.localPath, repo.faissIndexId)
+    aiClient.ingest(repo._id.toString(), repo.localPath, repo.faissIndexId, repo.url, 'main', null)
       .then(async result => {
         await Repo.findByIdAndUpdate(repo._id, {
           status:       'ready',

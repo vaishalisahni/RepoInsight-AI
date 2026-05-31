@@ -5,13 +5,15 @@ const AI_BASE = process.env.AI_SERVICE_URL || 'http://localhost:5000';
 
 const client = axios.create({
   baseURL: AI_BASE,
-  timeout: 600000 // 10 minutes
+  timeout: 600000
 });
 
 module.exports = {
-  async ingest(repoId, localPath, faissIndexId) {
+  async ingest(repoId, localPath, faissIndexId, repoUrl, branch, githubToken) {
     logger.info(`[aiClient] Ingesting repo ${repoId}`);
-    const { data } = await client.post('/ingest', { repoId, localPath, faissIndexId });
+    const { data } = await client.post('/ingest', {
+      repoId, localPath, faissIndexId, repoUrl, branch, githubToken
+    });
     return data;
   },
   async query({ faissIndexId, question, history, repoName }) {
