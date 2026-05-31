@@ -5,7 +5,7 @@ const AI_BASE = process.env.AI_SERVICE_URL || 'http://localhost:5000';
 
 const client = axios.create({
   baseURL: AI_BASE,
-  timeout: 180000 // 3 minutes for large codebases
+  timeout: 600000 // 10 minutes
 });
 
 module.exports = {
